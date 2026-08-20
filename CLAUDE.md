@@ -58,7 +58,7 @@ Diferente da spec, as fases não são estritamente sequenciais:
 - **Fase 3** — filtro de confidencialidade ✅ (feita antes da Fase 2 de
   propósito: é o núcleo do sistema, é testável isoladamente e fazer primeiro
   força o desenho de dados correto na coleta)
-- **Fase 1** — schema multiusuário. Não depende de credencial nenhuma.
+- **Fase 1** — schema multiusuário ✅
 - **Fase 1.5 — login e tela de introdução.** Nova, e antes da coleta. É por
   onde cada dev conecta GitHub, Telegram, e-mails, denylist e LinkedIn.
   Sem ela não existe usuário cadastrado e nada mais roda.
@@ -68,6 +68,43 @@ Diferente da spec, as fases não são estritamente sequenciais:
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
 - **Fase 6** — edição do post no painel, que a essa altura já existe.
 - **Fase 7** — publicação no LinkedIn quando o app estiver liberado.
+
+## O banco
+
+Duas ausências no schema são decisões, não esquecimento:
+
+**Não existe coluna com a mensagem do commit.** A tabela `commits` serve para
+deduplicar e mostrar procedência, não para guardar conteúdo. A mensagem é lida
+da API do GitHub, atravessa o filtro e é descartada na mesma execução — nunca
+toca o disco. O preço é não conseguir regerar fatos de commits antigos se o
+vocabulário melhorar; daria para rebuscar no GitHub. Vale o troco: é a
+diferença entre um vazamento do banco expor metadados ou expor o trabalho
+inteiro de duas pessoas.
+
+**Não existe coluna com o nome real do repositório.** Guardamos o id numérico
+do GitHub e um alias nosso; o nome é buscado na API quando precisa.
+
+Outras decisões: `UNIQUE(user_id, sha)` em `commits` é o que torna re-executar
+o workflow seguro; `user_emails.email` é único globalmente para o mesmo commit
+não virar post de dois donos; e a coluna do token do LinkedIn se chama
+`access_token_encrypted` porque o nome é a barreira mais barata contra alguém
+gravar em claro a credencial que publica no perfil de outra pessoa.
+
+```bash
+npm run db:generate --workspace @commitpost/core   # schema.ts -> SQL
+npm run db:migrate  --workspace @commitpost/core   # aplica no Neon
+npm run db:studio   --workspace @commitpost/core   # inspeção
+```
+
+Os testes de `src/db/db.test.ts` rodam contra o banco real e se pulam sozinhos
+quando `DATABASE_URL` não está no ambiente — é o caso do CI. Eles verificam as
+restrições que sustentam as decisões acima, não que o ORM funciona.
+
+**Sobre o `npm audit`:** o `drizzle-kit` arrasta um `esbuild` com advisory
+moderado. É ferramenta de linha de comando que só gera SQL localmente; o
+advisory é sobre o *dev server* do esbuild, que nunca sobe aqui. O
+`audit fix --force` rebaixaria o drizzle-kit para uma versão incompatível com
+o ORM. Aceito conscientemente.
 
 ## O filtro de confidencialidade
 

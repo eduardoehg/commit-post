@@ -75,6 +75,18 @@ const webSchema = z.object({
   DATABASE_URL: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_CHAT_ID: z.string().min(1),
+  /**
+   * Logins do GitHub autorizados a entrar, separados por vírgula.
+   *
+   * Sem isto, "entrar com GitHub" deixaria qualquer pessoa do mundo criar
+   * conta e passar a consumir a chave da Anthropic do operador.
+   *
+   * Não tem valor padrão de propósito: esquecer a variável levanta erro no
+   * boot, em vez de trancar todo mundo para fora com uma mensagem confusa.
+   * Uma lista deliberadamente vazia é válida — basta declarar vazia.
+   */
+  ALLOWED_GITHUB_LOGINS: termList,
+
   TELEGRAM_WEBHOOK_SECRET: secret,
   PANEL_TOKEN_SECRET: secret,
   APP_BASE_URL: httpUrl,

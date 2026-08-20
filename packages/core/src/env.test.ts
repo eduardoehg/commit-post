@@ -20,6 +20,7 @@ const validWeb = {
   TELEGRAM_CHAT_ID: "999",
   TELEGRAM_WEBHOOK_SECRET: SECRET,
   PANEL_TOKEN_SECRET: SECRET,
+  ALLOWED_GITHUB_LOGINS: "eduardoehg,outrodev",
   APP_BASE_URL: "https://commit-post.vercel.app",
 };
 
@@ -100,6 +101,20 @@ describe("loadWebEnv", () => {
   it("exige TELEGRAM_CHAT_ID — é o que impede terceiros de aprovarem posts", () => {
     const { TELEGRAM_CHAT_ID: _omitted, ...semChat } = validWeb;
     expect(() => loadWebEnv(semChat)).toThrow(EnvValidationError);
+  });
+
+  it("divide a allowlist de logins do GitHub em lista", () => {
+    expect(loadWebEnv(validWeb).ALLOWED_GITHUB_LOGINS).toEqual(["eduardoehg", "outrodev"]);
+  });
+
+  it("exige a allowlist — esquecê-la deve quebrar no boot, não trancar todos para fora", () => {
+    const { ALLOWED_GITHUB_LOGINS: _omitida, ...semAllowlist } = validWeb;
+    expect(() => loadWebEnv(semAllowlist)).toThrow(EnvValidationError);
+  });
+
+  it("aceita allowlist deliberadamente vazia", () => {
+    const env = loadWebEnv({ ...validWeb, ALLOWED_GITHUB_LOGINS: "" });
+    expect(env.ALLOWED_GITHUB_LOGINS).toEqual([]);
   });
 
   it("rejeita APP_BASE_URL sem protocolo", () => {
