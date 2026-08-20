@@ -106,6 +106,44 @@ advisory é sobre o *dev server* do esbuild, que nunca sobe aqui. O
 `audit fix --force` rebaixaria o drizzle-kit para uma versão incompatível com
 o ORM. Aceito conscientemente.
 
+## Credenciais do GitHub: dois caminhos, de propósito
+
+**GitHub App** é o principal. Serve de login, e a instalação dá acesso aos
+repositórios da conta onde foi instalada. Os tokens são gerados na hora a
+partir da chave privada e expiram em uma hora, então nenhuma credencial de dev
+fica armazenada — por isso `github_installations` não tem coluna de token.
+
+**OAuth App clássico** é opcional e existe por uma limitação que não tem volta:
+a instalação de um GitHub App só enxerga repos da conta onde foi instalada, e o
+*user access token* dele continua preso às instalações. Repositório onde o dev
+é apenas colaborador, de outra pessoa, é inalcançável — e é onde mora boa parte
+do trabalho de muita gente.
+
+O preço do OAuth clássico: `repo` é leitura **e escrita**, porque não existe
+escopo somente-leitura para repositório privado. Daí as três regras:
+
+1. a concessão é **opt-in por dev**, num passo separado da tela de introdução,
+   com o alcance explicado em português claro;
+2. o token vai **cifrado** para o banco (`packages/core/src/crypto.ts`);
+3. o sistema **nunca** chama endpoint de escrita do GitHub. Se algum dia
+   precisar, isso é uma decisão a ser tomada de novo, não uma extensão óbvia.
+
+Quando os repos são de uma **organização**, o caminho limpo é um admin instalar
+o App na org — cobre todos de uma vez e dispensa o OAuth.
+
+## Cifra de segredos
+
+`TOKEN_ENCRYPTION_KEY` (32 bytes em hex) cifra em AES-256-GCM os tokens de
+terceiros guardados no banco: o do LinkedIn, que publica no perfil de outra
+pessoa, e o OAuth do GitHub com escopo `repo`.
+
+O que isso protege é especificamente o cenário de dump do banco. Quem tiver o
+ambiente da aplicação inteiro tem a chave também, e nada aqui muda isso.
+
+**Trocar a chave torna ilegível tudo que foi cifrado com a antiga** — na
+prática, todo dev precisa reautorizar GitHub e LinkedIn. Não há rotação
+automática; o prefixo `v1.` no formato existe para permitir migração futura.
+
 ## O filtro de confidencialidade
 
 `packages/core/src/redact/` é a parte mais crítica do sistema. A decisão de

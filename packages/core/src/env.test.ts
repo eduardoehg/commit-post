@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { EnvValidationError, loadPipelineEnv, loadWebEnv } from "./env.js";
 
 const SECRET = "a".repeat(64);
+const HEX_KEY = "0123456789abcdef".repeat(4);
 
 const validPipeline = {
   DATABASE_URL: "postgresql://u:p@host/db",
@@ -11,6 +12,7 @@ const validPipeline = {
   TELEGRAM_BOT_TOKEN: "123:ABC",
   TELEGRAM_CHAT_ID: "999",
   PANEL_TOKEN_SECRET: SECRET,
+  TOKEN_ENCRYPTION_KEY: HEX_KEY,
   APP_BASE_URL: "https://commit-post.vercel.app",
 };
 
@@ -21,6 +23,7 @@ const validWeb = {
   TELEGRAM_WEBHOOK_SECRET: SECRET,
   PANEL_TOKEN_SECRET: SECRET,
   ALLOWED_GITHUB_LOGINS: "eduardoehg,outrodev",
+  TOKEN_ENCRYPTION_KEY: HEX_KEY,
   APP_BASE_URL: "https://commit-post.vercel.app",
 };
 
@@ -67,6 +70,14 @@ describe("loadPipelineEnv", () => {
       REDACT_DENIED_TERMS: "Portal Meridiano, acme-billing , Zarvox",
     });
     expect(env.REDACT_DENIED_TERMS).toEqual(["Portal Meridiano", "acme-billing", "Zarvox"]);
+  });
+
+  it("rejeita chave de cifra que não seja 32 bytes em hex", () => {
+    for (const ruim of ["", "abc", "z".repeat(64), "a".repeat(63)]) {
+      expect(() => loadPipelineEnv({ ...validPipeline, TOKEN_ENCRYPTION_KEY: ruim })).toThrow(
+        EnvValidationError,
+      );
+    }
   });
 
   it("rejeita segredo curto demais para assinar links", () => {

@@ -11,6 +11,12 @@ só quem opera o CommitPost precisa fazer.
 
 O que está aqui é só o que um aplicativo não consegue fazer por si: ele não
 pode se criar antes de existir.
+
+> **Se você já criou o GitHub App**, confira uma coisa antes de seguir: em
+> *Permissions & events* → **Account permissions** → *Email addresses* precisa
+> estar como **Read-only**. É a permissão mais fácil de esquecer, porque fica
+> numa seção separada das de repositório. Mudar antes de existir qualquer
+> instalação é de graça; depois, cada dev precisa aceitar a mudança.
 ## O que muda com multiusuário
 
 No banco, multi-dev é barato: uma tabela de usuários e uma coluna de dono nas
@@ -86,6 +92,56 @@ instalar.
 7. **Instalar na própria conta.** *Install App* → sua conta → selecione os
    repositórios. Prefira **Only select repositories** a **All repositories**:
    o sistema só precisa dos que vão virar post.
+
+## Alcançar repositórios onde o dev é apenas colaborador
+
+Um GitHub App é instalado numa **conta**, e a instalação dá acesso aos
+repositórios **daquela conta**. Se o repositório é de outra pessoa ou de uma
+organização, instalar o app na sua conta não alcança ele — e o *user access
+token* do App continua limitado às instalações existentes. Não há caminho por
+aí.
+
+Isso importa mais do que parece: para muita gente, é justamente nesses repos
+que mora a maior parte do trabalho.
+
+Há dois caminhos, e qual serve depende de quem é o dono.
+
+### Repositórios de uma organização
+
+Um admin da organização instala o CommitPost nela e seleciona os repos. É uma
+conversa só, e preserva todas as vantagens do App: token de leitura que expira
+em uma hora, seleção por repositório, nenhuma credencial armazenada.
+
+O link é o mesmo de instalação; ao abri-lo, o admin escolhe a organização em
+vez da conta pessoal.
+
+### Repositórios de pessoas físicas
+
+Aqui não dá para pedir instalação a cada dono. É preciso um token que aja como
+o próprio dev — na prática, um **OAuth App clássico**, separado do GitHub App.
+
+> **O custo é real.** O escopo `repo` é leitura **e escrita** em todos os
+> repositórios que a pessoa alcança. Não existe escopo somente-leitura para
+> repositório privado no OAuth clássico — `repo:read` não existe.
+>
+> Por isso a concessão é **opcional por dev**, aparece na tela de introdução
+> como um passo separado com o alcance explicado, e o token vai **cifrado**
+> para o banco. O sistema nunca chama endpoint de escrita.
+
+Para criar:
+
+1. `github.com/settings/developers` → **OAuth Apps** → **New OAuth App**
+2. *Application name:* `CommitPost — colaborações`
+3. *Homepage URL:* `https://commitpost.vercel.app`
+4. *Authorization callback URL:*
+   `https://commitpost.vercel.app/api/auth/github/oauth/callback`
+5. **Register application** → anote o **Client ID** → **Generate a new client
+   secret** e copie na hora
+
+Repasse como `GITHUB_OAUTH_CLIENT_ID` e `GITHUB_OAUTH_CLIENT_SECRET`.
+
+> Se a organização tiver restrição de aplicativos de terceiros, ela bloqueia os
+> dois caminhos igualmente e um admin precisa aprovar de qualquer forma.
 
 ## Liberar o LinkedIn para os demais devs
 

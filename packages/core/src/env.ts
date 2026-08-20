@@ -41,6 +41,11 @@ const termList = z
   .string()
   .transform((raw) => raw.split(",").map((s) => s.trim()).filter(Boolean));
 
+/** Chave de 32 bytes em hexadecimal, para cifrar tokens guardados no banco. */
+const encryptionKey = z
+  .string()
+  .regex(/^[0-9a-fA-F]{64}$/, 'precisa ser 32 bytes em hex (64 caracteres)');
+
 const httpUrl = z
   .string()
   .url("precisa ser uma URL completa (com http:// ou https://)");
@@ -64,6 +69,7 @@ const pipelineSchema = z.object({
    */
   REDACT_DENIED_TERMS: termList.default(""),
 
+  TOKEN_ENCRYPTION_KEY: encryptionKey,
   ANTHROPIC_API_KEY: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_CHAT_ID: z.string().min(1),
@@ -85,6 +91,21 @@ const webSchema = z.object({
    * boot, em vez de trancar todo mundo para fora com uma mensagem confusa.
    * Uma lista deliberadamente vazia é válida — basta declarar vazia.
    */
+  TOKEN_ENCRYPTION_KEY: encryptionKey,
+
+  /**
+   * OAuth App clássico, separado do GitHub App.
+   *
+   * Existe só para alcançar repositórios onde o dev é apenas colaborador:
+   * a instalação de um GitHub App só enxerga repos da conta onde foi
+   * instalada, e o token de usuário dele continua preso às instalações.
+   *
+   * Opcional porque a concessão é opcional — quem não tem colaborações
+   * fora das próprias contas não precisa conceder escopo `repo`.
+   */
+  GITHUB_OAUTH_CLIENT_ID: z.string().min(1).optional(),
+  GITHUB_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
+
   ALLOWED_GITHUB_LOGINS: termList,
 
   TELEGRAM_WEBHOOK_SECRET: secret,
