@@ -18,6 +18,7 @@ import { closeDatabase, createDatabase, users } from "@commitpost/core/db";
 import { extractTechnicalFacts } from "@commitpost/core/redact";
 import { eq } from "drizzle-orm";
 import { coletarDoDev } from "./coleta";
+import { gerarEGravar } from "./geracao";
 
 function log(mensagem: string): void {
   console.log(`[commitpost] ${mensagem}`);
@@ -32,6 +33,12 @@ async function main(): Promise<void> {
   const since = new Date(until.getTime() - env.GITHUB_LOOKBACK_DAYS * 86_400_000);
 
   log(`janela: ${since.toISOString()} → ${until.toISOString()}`);
+
+  // `npm run pipeline -- --ensaio` mostra o que sairia sem gravar nada. É o
+  // único jeito de reler commits que o índice único já considera conhecidos,
+  // sem apagar linha do banco de ninguém.
+  const ensaio = process.argv.includes("--ensaio");
+  if (ensaio) log("ENSAIO: nada será gravado");
 
   const db = createDatabase(env.DATABASE_URL);
 
@@ -50,7 +57,7 @@ async function main(): Promise<void> {
 
     for (const dev of devs) {
       try {
-        await processarDev(db, env, dev, since, until);
+        await processarDev(db, env, dev, since, until, ensaio);
       } catch (error) {
         // O erro de um não pode custar o ciclo dos outros.
         log(`${dev.login}: falhou — ${error instanceof Error ? error.message : String(error)}`);
@@ -67,6 +74,7 @@ async function processarDev(
   dev: { id: number; login: string },
   since: Date,
   until: Date,
+  ensaio: boolean,
 ): Promise<void> {
   const coleta = await coletarDoDev({
     db,
@@ -77,6 +85,7 @@ async function processarDev(
     appPrivateKey: env.GITHUB_APP_PRIVATE_KEY,
     encryptionKey: env.TOKEN_ENCRYPTION_KEY,
     extraDeniedTerms: env.REDACT_DENIED_TERMS,
+    ensaio,
   });
 
   for (const aviso of coleta.avisos) log(`${dev.login}: ${aviso}`);
@@ -94,16 +103,44 @@ async function processarDev(
   const fatos = extractTechnicalFacts(coleta.novos, { deniedTerms: coleta.termosProibidos });
 
   log(`${dev.login}: ${String(fatos.length)} fato(s) técnico(s) publicáveis`);
-  for (const fato of fatos) {
+  if (fatos.length === 0) return;
+
+  const lote = await gerarEGravar({
+    db,
+    userId: dev.id,
+    apiKey: env.ANTHROPIC_API_KEY,
+    facts: fatos,
+    deniedTerms: coleta.termosProibidos,
+    windowStart: since,
+    windowEnd: until,
+    commitCount: coleta.novos.length,
+    ensaio,
+  });
+
+  for (const descartado of lote.descartados) {
+    // Isto não é ruído de log. Descarte na barreira 2 significa que algo
+    // passou pela barreira 1 ou que o modelo inventou — precisa doer o
+    // suficiente para alguém investigar.
     log(
-      `${dev.login}:   ${fato.changeKind} · ${fato.technologies.join(", ") || "sem tecnologia"}` +
-        `${fato.problemClass === null ? "" : ` · ${fato.problemClass}`}` +
-        ` · ${String(fato.sourceShas.length)} commit(s)`,
+      `${dev.login}: ATENÇÃO — candidato "${descartado.angulo}" descartado ` +
+        `(${descartado.removidos.join(", ")})`,
     );
   }
 
-  // Fase 4 — geração dos candidatos (packages/core/llm)
-  // Fase 1 — persistência do lote (post_batches + post_candidates)
+  if (lote.candidatos.length === 0) {
+    log(`${dev.login}: nenhum candidato aprovado — ${lote.motivo ?? "sem motivo informado"}`);
+    return;
+  }
+
+  const origem = lote.batchId === null ? "ensaio" : `lote ${String(lote.batchId)}`;
+  log(`${dev.login}: ${origem} com ${String(lote.candidatos.length)} candidato(s)`);
+  if (lote.motivo !== null) log(`${dev.login}: ${lote.motivo}`);
+
+  for (const candidato of lote.candidatos) {
+    log(`${dev.login}: ── ${candidato.angulo} ──`);
+    for (const linha of candidato.texto.split("\n")) log(`${dev.login}: ${linha}`);
+  }
+
   // Fase 5 — envio com procedência (packages/core/telegram)
 }
 

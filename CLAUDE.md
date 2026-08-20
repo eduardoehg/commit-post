@@ -67,7 +67,8 @@ Diferente da spec, as fases não são estritamente sequenciais:
   Sem ela não existe usuário cadastrado e nada mais roda.
 - **Fase 2** — coleta ✅, com o token de instalação do GitHub App e, para quem
   concedeu, o OAuth de colaboração.
-- **Fases 4 e 5** — geração e aprovação no Telegram.
+- **Fase 4** — geração dos candidatos ✅.
+- **Fase 5** — aprovação no Telegram.
 - **MVP para aqui**, com publicação manual (copiar do Telegram). Valida a
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
 - **Fase 6** — edição do post no painel, que a essa altura já existe.
@@ -177,6 +178,32 @@ vira aviso. Uma instalação suspensa de uma pessoa não é motivo para a outra
 ficar sem post. HTTP 409 é repositório **vazio**, não falha — tratá-lo como
 erro enchia o log de aviso para uma situação normal, e aviso que sempre aparece
 é aviso que ninguém lê.
+
+## A geração
+
+`packages/core/src/llm/` recebe `TechnicalFact[]` e nada mais. Isso não é
+disciplina de quem chama, é o tipo — e por isso **vazamento não é o risco aqui**.
+O modelo nunca viu um nome de cliente.
+
+**O risco é invenção.** Com "bugfix, cache, lentidão" como matéria-prima, a
+tentação de qualquer modelo é preencher o vazio: *"trabalhando num sistema
+bancário de alto volume..."*. Nada disso veio dos dados, e uma frase dessas é ao
+mesmo tempo mentira e a forma exata de um vazamento. Daí a REGRA 1 do prompt ser
+a mais longa, e daí o modelo poder devolver **zero** candidatos com um motivo.
+Um post a menos não custa nada.
+
+`buildUserPrompt` é público e puro porque é o que atravessa a rede: dá para
+testar que os **shas não vão ao modelo** (só a contagem) e que campo nulo é
+omitido em vez de virar a palavra `null`, que o modelo trataria como informação.
+
+Candidato que a barreira 2 suja é **descartado**, nunca publicado com
+`[removido]`: se um termo proibido chegou à saída, o texto inteiro perdeu a
+credibilidade, e publicar a versão censurada seria confiar no resto de um texto
+que já provou não ser confiável.
+
+`npm run pipeline -- --ensaio` gera e mostra sem gravar nada. Existe porque a
+dedução de "commit novo" é o índice único: depois da primeira execução não sobra
+nada para experimentar, e a alternativa seria apagar linhas do banco de alguém.
 
 ## Login, sessão e a tela de introdução
 
@@ -288,6 +315,7 @@ npm install          # instala o workspace inteiro
 npm run typecheck    # tsc em todos os pacotes
 npm test             # vitest
 npm run pipeline     # roda o pipeline localmente (precisa de .env.local)
+npm run pipeline -- --ensaio   # mostra o que sairia, sem gravar nada
 npm run dev          # sobe o Next em apps/web
 ```
 

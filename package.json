@@ -17,7 +17,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "pipeline": "npm run start --workspace @commitpost/pipeline"
+    "pipeline": "npm run start --workspace @commitpost/pipeline --"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

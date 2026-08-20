@@ -47,6 +47,16 @@ export interface ColetaOptions {
   encryptionKey: string;
   /** Somados aos termos do dev. Vêm de REDACT_DENIED_TERMS. */
   extraDeniedTerms: readonly string[];
+  /**
+   * Ensaio: não grava nada e devolve TUDO que encontrou, inclusive o que já
+   * está no banco.
+   *
+   * Existe porque a dedução de "novo" é o índice único em (user_id, sha) — o
+   * que é ótimo em produção e péssimo para experimentar: depois da primeira
+   * execução não sobra nada para ver, e a única forma de olhar de novo seria
+   * apagar linhas do banco de alguém. Aqui a resposta é não gravar.
+   */
+  ensaio?: boolean;
 }
 
 export interface ColetaResult {
@@ -120,7 +130,10 @@ export async function coletarDoDev(options: ColetaOptions): Promise<ColetaResult
     }
   }
 
-  const { novos, repetidos } = await gravarNovos(db, userId, alvos, colhidos);
+  const { novos, repetidos } =
+    options.ensaio === true
+      ? { novos: [...colhidos], repetidos: 0 }
+      : await gravarNovos(db, userId, alvos, colhidos);
 
   return {
     novos,
