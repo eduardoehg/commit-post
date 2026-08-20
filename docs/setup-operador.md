@@ -1,14 +1,22 @@
-# Onboarding — configuração multiusuário
+# Setup do operador
 
-Tudo que precisa de ação humana para o CommitPost atender mais de um dev.
-A [Parte 2](#parte-2--cada-dev-inclusive-você) é destacável: é o que cada
-pessoa faz, e pode ser enviada direto para quem vai entrar.
+Criação das contas de plataforma. **Acontece uma vez na vida do projeto** e
+só quem opera o CommitPost precisa fazer.
 
-## O que muda de verdade
+> **Isto não é o onboarding dos devs.** O que cada dev faz — conectar o
+> GitHub, ligar o Telegram, confirmar e-mails, montar a lista de termos
+> proibidos, autorizar o LinkedIn — acontece **dentro do sistema**, numa tela
+> de introdução com um passo a passo clicável. Ninguém precisa ler arquivo
+> nenhum para começar a usar.
+
+O que está aqui é só o que um aplicativo não consegue fazer por si: ele não
+pode se criar antes de existir.
+## O que muda com multiusuário
 
 No banco, multi-dev é barato: uma tabela de usuários e uma coluna de dono nas
 demais. O custo real está nas credenciais — cada dev autoriza o GitHub e o
 LinkedIn por conta própria, e cada um tem a sua lista de nomes a esconder.
+Todas essas autorizações acontecem na tela de introdução do sistema.
 
 | Peça | Antes | Agora |
 |---|---|---|
@@ -21,9 +29,7 @@ LinkedIn por conta própria, e cada um tem a sua lista de nomes a esconder.
 
 ---
 
-## Parte 1 — só o operador
-
-### Criar o GitHub App
+## Criar o GitHub App
 
 Substitui o token pessoal. Você faz uma vez; depois cada dev só clica em
 instalar.
@@ -72,7 +78,7 @@ instalar.
    repositórios. Prefira **Only select repositories** a **All repositories**:
    o sistema só precisa dos que vão virar post.
 
-### Liberar o LinkedIn para o segundo dev
+## Liberar o LinkedIn para os demais devs
 
 O app do LinkedIn continua sendo um só — o que muda é que outra pessoa vai
 precisar autorizá-lo.
@@ -90,82 +96,35 @@ Page.
 
 ---
 
-## Parte 2 — cada dev, inclusive você
-
-Leva uns cinco minutos.
-
-1. **Instalar o GitHub App.** Abra o link de instalação que o operador vai
-   passar, escolha sua conta e selecione **só os repositórios** que você quer
-   que virem post. Dá para mudar a seleção depois e desinstalar a qualquer
-   momento.
-
-   Se algum repositório for de uma organização com SSO, o administrador dela
-   precisa aprovar a instalação. Vale checar antes de contar com ele.
-
-2. **Falar com o bot no Telegram.** Abra `t.me/commitpost_bot` e mande
-   qualquer mensagem. É assim que o sistema descobre para onde mandar seus
-   posts para aprovação. Sem isso você não recebe nada.
-
-3. **Listar seus e-mails de autor no git.** Rode em cada máquina que você usa,
-   e some o e-mail do trabalho se for diferente:
-
-   ```bash
-   git config user.email
-   ```
-
-   Se faltar um e-mail nessa lista, os commits feitos com ele simplesmente não
-   aparecem — sem erro, sem aviso.
-
-4. **Montar sua lista de termos proibidos.** Esta é a parte que exige atenção
-   de verdade. Liste tudo que não pode aparecer num post público:
-
-   - nome da empresa onde você trabalha, e variações dela
-   - nomes de clientes
-   - nomes de produtos e sistemas internos
-   - nomes reais dos repositórios privados
-   - domínios internos
-
-   > **Sua lista protege só você.** O filtro é por pessoa: o que o outro dev
-   > listou não cobre os seus clientes, e vice-versa.
-   >
-   > O sistema já descarta por padrão tudo que não reconhece como termo técnico
-   > público — a lista é a segunda camada, para os casos em que um nome interno
-   > também é uma palavra comum.
-
-5. **Autorizar o LinkedIn.** Só quando o operador avisar que essa parte está
-   liberada. Você recebe um link, autoriza uma vez, e o sistema passa a poder
-   publicar em seu nome — sempre depois da sua aprovação no Telegram, nunca
-   sozinho.
-
 ---
 
-## Parte 3 — o que o operador precisa reunir
+## Depois disso, nada mais é manual
 
-| Item | Origem |
+Com o GitHub App e o app do LinkedIn criados, o operador não precisa reunir
+dado nenhum de ninguém. Cada dev entra em `commitpost.vercel.app`, faz login
+com o GitHub e segue a tela de introdução:
+
+| Passo na tela | O que acontece por baixo |
 |---|---|
-| `GITHUB_APP_ID` | número do app |
-| `GITHUB_APP_CLIENT_ID` | página do app |
-| `GITHUB_APP_CLIENT_SECRET` | gerado uma vez, copiado na hora |
-| `GITHUB_APP_PRIVATE_KEY` | o `.pem` em base64, uma linha |
-| Por dev: nome | como identificar cada um |
-| Por dev: login do GitHub | para casar com a instalação do app |
-| Por dev: e-mails de autor | todos, separados por vírgula |
-| Por dev: termos proibidos | a lista da Parte 2, passo 4 |
+| Conectar o GitHub | é o próprio login; o callback já traz o `installation_id` |
+| Receber no Telegram | link `t.me/commitpost_bot?start=<código>` amarra o `chat_id` |
+| Confirmar e-mails | lidos da API do GitHub, o dev só marca e completa |
+| Proteger o que não pode vazar | o sistema **propõe** a lista a partir dos nomes reais dos repositórios e da organização; o dev confirma e acrescenta |
+| Publicar no LinkedIn | OAuth, opcional — sem ele o dev copia o post aprovado do Telegram |
 
-> Termos proibidos e chaves vão para o banco e para os secrets, **nunca para o
-> repositório** — que é público. A lista de termos em particular nomeia
-> exatamente aquilo que não pode vazar, então é tão sensível quanto o conteúdo
-> que protege.
+Os dois passos em que o sistema propõe não são só conveniência. Pedir que
+alguém *lembre* de todos os nomes de cliente é a parte mais frágil de todo o
+processo, e é justamente a que não pode falhar.
 
 ---
 
-## O que fica mais pesado com duas pessoas
+## O que fica mais pesado com mais de uma pessoa
 
-Nada aqui impede o projeto de seguir. São coisas que mudam de natureza quando o
-sistema deixa de ser uma ferramenta pessoal.
+Nada aqui impede o projeto de seguir. São coisas que mudam de natureza quando
+o sistema deixa de ser uma ferramenta pessoal.
 
 **O operador passa a guardar credencial de outra pessoa.** O token do LinkedIn
-do segundo dev permite publicar no perfil dele. O GitHub App evita o mesmo
+de cada dev permite publicar no perfil dele. O GitHub App evita o mesmo
 problema do lado do código: os tokens são gerados na hora a partir da chave
 privada do app e expiram em uma hora, então nenhuma credencial do dev fica
 armazenada.

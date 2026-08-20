@@ -27,7 +27,9 @@ GitHub Actions (cron, UTC)
 
 Vercel — apps/web (só o que precisa ser HTTP público)
   ├─ POST /api/telegram/webhook   valida secret + allowlist de chat_id
-  ├─ GET  /post/[id]?t=<hmac>     painel de edição, link assinado  (Fase 6)
+  ├─ /onboarding                  tela de introdução do dev        (Fase 1.5)
+  ├─ GET  /api/auth/github/*      login com GitHub + instalação    (Fase 1.5)
+  ├─ GET  /post/[id]              edição do post                   (Fase 6)
   └─ GET  /api/auth/linkedin/callback  OAuth, grava token   (Fase 7)
 ```
 
@@ -56,11 +58,16 @@ Diferente da spec, as fases não são estritamente sequenciais:
 - **Fase 3** — filtro de confidencialidade ✅ (feita antes da Fase 2 de
   propósito: é o núcleo do sistema, é testável isoladamente e fazer primeiro
   força o desenho de dados correto na coleta)
-- **Fases 1, 2, 4, 5** — banco, coleta, geração, Telegram.
+- **Fase 1** — schema multiusuário. Não depende de credencial nenhuma.
+- **Fase 1.5 — login e tela de introdução.** Nova, e antes da coleta. É por
+  onde cada dev conecta GitHub, Telegram, e-mails, denylist e LinkedIn.
+  Sem ela não existe usuário cadastrado e nada mais roda.
+- **Fase 2** — coleta, já usando o token de instalação do GitHub App.
+- **Fases 4 e 5** — geração e aprovação no Telegram.
 - **MVP para aqui**, com publicação manual (copiar do Telegram). Valida a
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
-- **Fase 6** (painel) deixa de ser opcional se o botão "✏️ Editar" existir.
-- **Fase 7** (LinkedIn) quando o app estiver aprovado.
+- **Fase 6** — edição do post no painel, que a essa altura já existe.
+- **Fase 7** — publicação no LinkedIn quando o app estiver liberado.
 
 ## O filtro de confidencialidade
 
