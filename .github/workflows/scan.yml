@@ -43,8 +43,12 @@ jobs:
         run: npm run pipeline
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GITHUB_TOKEN: ${{ secrets.COMMITPOST_GITHUB_TOKEN }}
-          GITHUB_AUTHOR_EMAILS: ${{ secrets.COMMITPOST_AUTHOR_EMAILS }}
+          # O App substituiu o token pessoal na Fase 2: cada dev tem as
+          # próprias instalações e os próprios e-mails de autor, no banco.
+          # COMMITPOST_GITHUB_TOKEN e COMMITPOST_AUTHOR_EMAILS não são mais
+          # lidos por ninguém — dá para apagar os dois do repositório.
+          GITHUB_APP_ID: ${{ secrets.COMMITPOST_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.COMMITPOST_APP_PRIVATE_KEY }}
           GITHUB_LOOKBACK_DAYS: ${{ vars.COMMITPOST_LOOKBACK_DAYS || '7' }}
           REDACT_DENIED_TERMS: ${{ secrets.COMMITPOST_DENIED_TERMS }}
           TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}

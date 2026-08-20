@@ -19,7 +19,7 @@ import {
   noreplyEmail,
   type GitHubViewer,
 } from "@commitpost/core/github";
-import { deniedTerms, githubInstallations, userEmails } from "@commitpost/core/db";
+import { deniedTerms, githubInstallations, upsertRepos, userEmails } from "@commitpost/core/db";
 import { proposeDeniedTerms } from "@commitpost/core/onboarding";
 import { db } from "./runtime";
 
@@ -120,6 +120,16 @@ export async function syncFromGitHub(
 
   const termos = proposeDeniedTerms(repos, contas, viewer.login);
 
+  // Registrar os repositórios aqui, e não só na primeira coleta, é o que
+  // permite o dev escolher quais entram ANTES de o primeiro ciclo rodar. Sem
+  // isto a tela de seleção ficaria vazia justamente quando ela importa: antes
+  // de o primeiro commit de um cliente virar candidato a post.
+  await upsertRepos(
+    database,
+    userId,
+    repos.map((r) => ({ externalId: r.id, private: r.private })),
+  );
+
   return {
     installations: installations.length,
     emailsAdded,
@@ -147,6 +157,13 @@ export async function proposeTermsFromCollaborations(
   oauthToken: string,
 ): Promise<number> {
   const repos = await fetchCollaboratorRepos(oauthToken);
+
+  await upsertRepos(
+    db(),
+    userId,
+    repos.map((r) => ({ externalId: r.id, private: r.private })),
+  );
+
   return gravarTermos(userId, proposeDeniedTerms(repos, [], viewerLogin));
 }
 

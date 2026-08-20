@@ -287,6 +287,18 @@ export const repos = pgTable(
     alias: text().notNull(),
     private: boolean().notNull().default(true),
 
+    /**
+     * Desmarcado pelo dev para tirar o repositório da coleta.
+     *
+     * É o único controle que existe para os repositórios de colaboração: a
+     * concessão OAuth é tudo-ou-nada e alcança todos de uma vez. Sem esta
+     * coluna, "não quero que este vire post" não teria resposta.
+     *
+     * Novo repositório entra ativo. O contrário — precisar marcar cada um —
+     * faria o sistema parecer quebrado para quem acabou de configurar.
+     */
+    active: boolean().notNull().default(true),
+
     createdAt,
   },
   (t) => [

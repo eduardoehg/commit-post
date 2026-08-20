@@ -16,7 +16,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
-import { deniedTerms, userEmails, users } from "@commitpost/core/db";
+import {
+  deniedTerms,
+  renameRepo,
+  setRepoActive,
+  userEmails,
+  users,
+} from "@commitpost/core/db";
 import { db, requireUser } from "@/lib/runtime";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -121,4 +127,25 @@ export async function desvincularTelegram(): Promise<void> {
     .where(eq(users.id, user.id));
 
   done({ aviso: "Telegram desvinculado. Você não receberá posts até vincular de novo." });
+}
+
+export async function alternarRepo(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const id = Number(field(formData, "id"));
+  if (!Number.isInteger(id)) done({ erro: "Registro inválido." });
+
+  await setRepoActive(db(), user.id, id, field(formData, "ativo") === "1");
+  done();
+}
+
+export async function renomearRepo(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const id = Number(field(formData, "id"));
+  if (!Number.isInteger(id)) done({ erro: "Registro inválido." });
+
+  const apelido = field(formData, "apelido");
+  if (apelido === "") done({ erro: "O apelido não pode ficar vazio." });
+
+  await renameRepo(db(), user.id, id, apelido);
+  done();
 }

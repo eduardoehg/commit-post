@@ -4,10 +4,13 @@ import { EnvValidationError, loadPipelineEnv, loadWebEnv } from "./env";
 const SECRET = "a".repeat(64);
 const HEX_KEY = "0123456789abcdef".repeat(4);
 
+/** Não é uma chave de verdade; o validador só exige que o PEM se anuncie. */
+const PEM = "-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----\n";
+
 const validPipeline = {
   DATABASE_URL: "postgresql://u:p@host/db",
-  GITHUB_TOKEN: "ghp_token",
-  GITHUB_AUTHOR_EMAILS: "eu@pessoal.com, eu@empresa.com",
+  GITHUB_APP_ID: "4662011",
+  GITHUB_APP_PRIVATE_KEY: PEM,
   ANTHROPIC_API_KEY: "sk-ant-key",
   TELEGRAM_BOT_TOKEN: "123:ABC",
   TELEGRAM_CHAT_ID: "999",
@@ -15,9 +18,6 @@ const validPipeline = {
   TOKEN_ENCRYPTION_KEY: HEX_KEY,
   APP_BASE_URL: "https://commit-post.vercel.app",
 };
-
-/** Não é uma chave de verdade; o validador só exige que o PEM se anuncie. */
-const PEM = "-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----\n";
 
 const validWeb = {
   DATABASE_URL: "postgresql://u:p@host/db",
@@ -39,15 +39,38 @@ describe("loadPipelineEnv", () => {
     expect(() => loadPipelineEnv(validPipeline)).not.toThrow();
   });
 
-  it("divide GITHUB_AUTHOR_EMAILS em lista, sem espaços sobrando", () => {
+  it("não conhece mais token pessoal nem lista global de e-mails", () => {
+    // Mudança da Fase 2. Cada dev tem as próprias instalações e os próprios
+    // e-mails de autor, no banco. Um PAT do operador e uma lista única de
+    // e-mails eram de quando o sistema atendia uma pessoa só — se sobrassem
+    // aqui, um deles voltaria a ser usado sem ninguém notar.
     const env = loadPipelineEnv(validPipeline);
-    expect(env.GITHUB_AUTHOR_EMAILS).toEqual(["eu@pessoal.com", "eu@empresa.com"]);
+    expect(env).not.toHaveProperty("GITHUB_TOKEN");
+    expect(env).not.toHaveProperty("GITHUB_AUTHOR_EMAILS");
   });
 
-  it("rejeita e-mail malformado na lista", () => {
-    expect(() =>
-      loadPipelineEnv({ ...validPipeline, GITHUB_AUTHOR_EMAILS: "eu@pessoal.com,nao-e-email" }),
-    ).toThrow(EnvValidationError);
+  it("exige as credenciais do GitHub App, que substituíram o token pessoal", () => {
+    for (const chave of ["GITHUB_APP_ID", "GITHUB_APP_PRIVATE_KEY"] as const) {
+      const { [chave]: _omitida, ...incompleto } = validPipeline;
+      expect(() => loadPipelineEnv(incompleto), `faltando ${chave}`).toThrow(EnvValidationError);
+    }
+  });
+
+  it("recusa o Client ID no lugar do App ID, aqui também", () => {
+    // A mesma trava do app web. Precisa de teste próprio: uma regra repetida
+    // em dois schemas é uma regra que pode ser afrouxada em um só, e a
+    // mutação passaria despercebida no outro.
+    expect(() => loadPipelineEnv({ ...validPipeline, GITHUB_APP_ID: "Iv23li000000" })).toThrow(
+      EnvValidationError,
+    );
+  });
+
+  it("aceita a chave privada em base64 no runner", () => {
+    const emBase64 = Buffer.from(PEM).toString("base64");
+    expect(
+      loadPipelineEnv({ ...validPipeline, GITHUB_APP_PRIVATE_KEY: emBase64 })
+        .GITHUB_APP_PRIVATE_KEY,
+    ).toContain("-----BEGIN");
   });
 
   it("usa 7 dias como janela padrão", () => {
@@ -100,7 +123,7 @@ describe("loadPipelineEnv", () => {
     } catch (e) {
       message = (e as Error).message;
     }
-    expect(message).toContain("GITHUB_TOKEN");
+    expect(message).toContain("GITHUB_APP_ID");
     expect(message).toContain("ANTHROPIC_API_KEY");
     expect(message).toContain("TELEGRAM_BOT_TOKEN");
   });

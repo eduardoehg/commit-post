@@ -65,7 +65,8 @@ Diferente da spec, as fases não são estritamente sequenciais:
 - **Fase 1.5 — login e tela de introdução** ✅. Nova, e antes da coleta. É por
   onde cada dev conecta GitHub, Telegram, e-mails, denylist e LinkedIn.
   Sem ela não existe usuário cadastrado e nada mais roda.
-- **Fase 2** — coleta, já usando o token de instalação do GitHub App.
+- **Fase 2** — coleta ✅, com o token de instalação do GitHub App e, para quem
+  concedeu, o OAuth de colaboração.
 - **Fases 4 e 5** — geração e aprovação no Telegram.
 - **MVP para aqui**, com publicação manual (copiar do Telegram). Valida a
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
@@ -141,6 +142,41 @@ escopo somente-leitura para repositório privado. Daí as três regras:
 
 Quando os repos são de uma **organização**, o caminho limpo é um admin instalar
 o App na org — cobre todos de uma vez e dispensa o OAuth.
+
+## A coleta
+
+`packages/core/src/github/collect.ts` é a borda: do lado de fora existem
+strings como `src/clients/acme-corp/faturamento.ts`; do lado de dentro só
+existe `ts`. A redução acontece **na entrada**, e não mais adiante, porque o
+que a camada de cima nunca recebe ela nunca vaza.
+
+**`fileExtensionsOf` é a função mais crítica desta camada** e a única do
+projeto com redundância deliberada: a separação do caminho e o teste
+`[a-z0-9]+` cobrem o mesmo caso. A mutação que remove só a separação sobrevive
+— está documentado no próprio arquivo para ninguém "limpar" isso. Aqui um furo
+não devolve resultado errado, devolve o caminho de um cliente.
+
+O e-mail de autor é conferido **duas vezes**: o parâmetro `author` da API
+reduz o tráfego, e a checagem local garante o resultado. A API aceita login OU
+e-mail no mesmo parâmetro, e um login que coincida traria commit alheio — que
+viraria post no nome de quem não o escreveu.
+
+Os **nomes reais** dos repositórios entram na denylist em memória, durante a
+coleta, e não são gravados por isso: é o nome real que aparece numa mensagem
+(`merge branch x into faturamento-clientey`), não o nosso alias. É a resposta
+ao aviso que estava em `FilterOptions.deniedTerms` desde a Fase 3.
+
+`repos.active` existe porque a concessão de colaboração é tudo-ou-nada: ela
+alcança todos os repositórios de uma vez, e sem esta coluna "não quero que este
+vire post" não teria resposta. Repositório desligado nem chega a ser
+consultado. O alias começa como `repo-3` e é editável — qualquer padrão
+derivado do nome real seria o nome real com um disfarce.
+
+Uma execução varre todos os devs ativos, e cada um é independente: quem falha
+vira aviso. Uma instalação suspensa de uma pessoa não é motivo para a outra
+ficar sem post. HTTP 409 é repositório **vazio**, não falha — tratá-lo como
+erro enchia o log de aviso para uma situação normal, e aviso que sempre aparece
+é aviso que ninguém lê.
 
 ## Login, sessão e a tela de introdução
 

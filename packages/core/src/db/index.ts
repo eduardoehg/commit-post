@@ -17,3 +17,4 @@
 
 export * from "./schema";
 export { createDatabase, closeDatabase, type Database } from "./client";
+export * from "./repos";

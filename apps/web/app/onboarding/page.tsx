@@ -20,7 +20,13 @@
 import type { ReactNode } from "react";
 import { eq } from "drizzle-orm";
 import { currentOrNewLinkCode, telegramDeepLink } from "@commitpost/core/auth";
-import { deniedTerms, githubInstallations, oauthTokens, userEmails } from "@commitpost/core/db";
+import {
+  deniedTerms,
+  githubInstallations,
+  listRepos,
+  oauthTokens,
+  userEmails,
+} from "@commitpost/core/db";
 import { fetchBotUsername } from "@commitpost/core/telegram";
 import { computeOnboarding, type OnboardingStep } from "@commitpost/core/onboarding";
 import { db, env, requireUser } from "@/lib/runtime";
@@ -28,9 +34,11 @@ import { GITHUB_COLLAB_PROVIDER, LINKEDIN_PROVIDER } from "@/lib/providers";
 import {
   adicionarEmail,
   adicionarTermo,
+  alternarRepo,
   desvincularTelegram,
   removerEmail,
   removerTermo,
+  renomearRepo,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -82,7 +90,7 @@ export default async function OnboardingPage({
   const database = db();
   const params = await searchParams;
 
-  const [instalacoes, emails, termos, tokens] = await Promise.all([
+  const [instalacoes, emails, termos, tokens, repositorios] = await Promise.all([
     database.select().from(githubInstallations).where(eq(githubInstallations.userId, user.id)),
     database.select().from(userEmails).where(eq(userEmails.userId, user.id)),
     database.select().from(deniedTerms).where(eq(deniedTerms.userId, user.id)),
@@ -90,6 +98,7 @@ export default async function OnboardingPage({
       .select({ provider: oauthTokens.provider })
       .from(oauthTokens)
       .where(eq(oauthTokens.userId, user.id)),
+    listRepos(database, user.id),
   ]);
 
   const providers = new Set(tokens.map((t) => t.provider));
@@ -173,6 +182,7 @@ export default async function OnboardingPage({
         ))}
       </ol>
 
+      <Repositorios repos={repositorios} />
       <Denylist termos={termos} />
     </main>
   );
@@ -516,6 +526,91 @@ function LinkedIn({ disponivel }: { disponivel: boolean }) {
 // ---------------------------------------------------------------------------
 // Fora da lista: ajuste, não passo
 // ---------------------------------------------------------------------------
+
+/**
+ * Quais repositórios entram na coleta.
+ *
+ * Fora da numeração pelo mesmo critério do resto: novo repositório entra ativo,
+ * então não há nada a cumprir aqui para o sistema funcionar. Existe porque a
+ * concessão de colaboração é tudo-ou-nada — ela alcança todos os repositórios
+ * de uma vez —, e sem esta lista "não quero que este vire post" não teria
+ * resposta em lugar nenhum.
+ *
+ * O apelido é editável e começa sem significado (`repo-3`). Qualquer padrão
+ * derivado do nome real — iniciais, abreviação — seria o nome real de volta
+ * com um disfarce; o que é seguro chamar cada projeto é decisão de quem
+ * conhece o contrato, não nossa.
+ */
+function Repositorios({ repos }: { repos: { id: number; alias: string; active: boolean }[] }) {
+  const ativos = repos.filter((r) => r.active).length;
+
+  if (repos.length === 0) {
+    return (
+      <p style={{ ...nota, marginTop: "1.5rem" }}>
+        Os repositórios aparecem aqui depois que você conectar o GitHub.
+      </p>
+    );
+  }
+
+  return (
+    <details
+      style={{
+        border: `1px solid ${CORES.borda}`,
+        borderRadius: "0.75rem",
+        padding: "1rem 1.25rem",
+        marginTop: "1.5rem",
+        background: CORES.fundo,
+      }}
+    >
+      <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+        Repositórios que entram na coleta
+        <span style={{ color: CORES.indisponivel, fontWeight: 400 }}>
+          {" "}
+          · {String(ativos)} de {String(repos.length)}
+        </span>
+      </summary>
+
+      <p style={{ margin: "0.75rem 0", color: "#3c4043", fontSize: "0.95rem" }}>
+        Desligue os que não devem virar post. O apelido é só para você reconhecer
+        de onde veio cada sugestão no Telegram — ele aparece na mensagem de
+        aprovação, então <strong>não use o nome do cliente</strong>.
+      </p>
+
+      <Lista>
+        {repos.map((r) => (
+          <Item key={r.id}>
+            <form action={renomearRepo} style={{ display: "flex", gap: "0.4rem", flex: 1 }}>
+              <input type="hidden" name="id" value={r.id} />
+              <input
+                type="text"
+                name="apelido"
+                defaultValue={r.alias}
+                maxLength={60}
+                aria-label="Apelido do repositório"
+                style={{ ...campo, opacity: r.active ? 1 : 0.5 }}
+              />
+              <button type="submit" style={botaoDiscreto}>
+                Renomear
+              </button>
+            </form>
+
+            <form action={alternarRepo}>
+              <input type="hidden" name="id" value={r.id} />
+              <input type="hidden" name="ativo" value={r.active ? "0" : "1"} />
+              <button type="submit" style={r.active ? botaoDiscreto : botaoPrincipal}>
+                {r.active ? "Desligar" : "Ligar"}
+              </button>
+            </form>
+          </Item>
+        ))}
+      </Lista>
+
+      <p style={nota}>
+        Um repositório desligado não é consultado — nem os commits dele são lidos.
+      </p>
+    </details>
+  );
+}
 
 /**
  * A lista de termos proibidos.

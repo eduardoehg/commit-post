@@ -18,6 +18,7 @@
  */
 
 export * from "./app";
+export * from "./collect";
 
 const NOT_IMPLEMENTED = "Fase 2 — ainda não implementado";
 

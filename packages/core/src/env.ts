@@ -13,19 +13,6 @@
 
 import { z } from "zod";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** Aceita "a@x.com, b@y.com" e devolve ["a@x.com", "b@y.com"]. */
-const emailList = z
-  .string()
-  .min(1)
-  .transform((raw) => raw.split(",").map((s) => s.trim()).filter(Boolean))
-  .refine((list) => list.length > 0, "precisa de ao menos um e-mail")
-  .refine(
-    (list) => list.every((e) => EMAIL_RE.test(e)),
-    "contém um e-mail inválido",
-  );
-
 /** Aceita "7" e devolve 7, rejeitando zero, negativo e não-numérico. */
 const positiveInt = z
   .string()
@@ -34,7 +21,7 @@ const positiveInt = z
   .refine((n) => n > 0, "precisa ser maior que zero");
 
 /**
- * Lista separada por vírgula. Diferente de `emailList`, aceita vazia — nem
+ * Lista separada por vírgula, e aceitar vazia é intencional — nem
  * todo mundo tem nomes de cliente a esconder.
  */
 const termList = z
@@ -104,12 +91,24 @@ const secret = z
 
 const pipelineSchema = z.object({
   DATABASE_URL: z.string().min(1),
-  GITHUB_TOKEN: z.string().min(1),
-  GITHUB_AUTHOR_EMAILS: emailList,
+
+  /**
+   * GitHub App. O pipeline não tem usuário logado: ele assina um JWT com a
+   * chave privada e troca por um token de instalação, que vale uma hora.
+   *
+   * Note o que sumiu daqui na Fase 2: GITHUB_TOKEN e GITHUB_AUTHOR_EMAILS.
+   * Eram de quando o sistema atendia uma pessoa só. Hoje cada dev tem as
+   * próprias instalações e os próprios e-mails de autor, no banco — um PAT do
+   * operador e uma lista global de e-mails não têm mais o que fazer.
+   */
+  GITHUB_APP_ID: z.string().regex(/^\d+$/, "é o App ID numérico, não o Client ID"),
+  GITHUB_APP_PRIVATE_KEY: pemPrivateKey,
+
   GITHUB_LOOKBACK_DAYS: positiveInt.default("7"),
   /**
-   * Nomes de empresas, clientes, produtos internos e os NOMES REAIS dos
-   * repositórios — alimenta a denylist do filtro de confidencialidade.
+   * Termos proibidos que valem para TODO MUNDO, somados aos que cada dev tem
+   * em `denied_terms`. Serve para o operador cobrir um nome que sabe ser
+   * sensível e que nenhum dev listaria.
    *
    * Esta lista é ela própria confidencial: ela nomeia exatamente o que não
    * pode vazar. Vive em GitHub Secrets e .env.local, nunca no repositório.
@@ -119,7 +118,12 @@ const pipelineSchema = z.object({
   TOKEN_ENCRYPTION_KEY: encryptionKey,
   ANTHROPIC_API_KEY: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
-  TELEGRAM_CHAT_ID: z.string().min(1),
+  /**
+   * Chat do operador, para avisos de falha do ciclo. Opcional: a ausência
+   * dele silencia o aviso, mas não é motivo para o pipeline inteiro recusar
+   * a rodar — os posts de todo mundo dependem disso.
+   */
+  TELEGRAM_CHAT_ID: optional(z.string().min(1)),
   PANEL_TOKEN_SECRET: secret,
   APP_BASE_URL: httpUrl,
 });
