@@ -50,8 +50,8 @@ instalar.
 
 2. **Identificação.**
    - *GitHub App name:* `CommitPost`
-   - *Homepage URL:* `https://commitpost.vercel.app`
-   - *Callback URL:* `https://commitpost.vercel.app/api/auth/github/callback`
+   - *Homepage URL:* `https://commit-post.vercel.app`
+   - *Callback URL:* `https://commit-post.vercel.app/api/auth/github/callback`
    - Marque **Request user authorization (OAuth) during installation**
 
 3. **Desligar o webhook.** Em *Webhook*, **desmarque Active**. O CommitPost
@@ -136,9 +136,9 @@ Para criar:
 
 1. `github.com/settings/developers` → **OAuth Apps** → **New OAuth App**
 2. *Application name:* `CommitPost — colaborações`
-3. *Homepage URL:* `https://commitpost.vercel.app`
+3. *Homepage URL:* `https://commit-post.vercel.app`
 4. *Authorization callback URL:*
-   `https://commitpost.vercel.app/api/auth/github/oauth/callback`
+   `https://commit-post.vercel.app/api/auth/github/oauth/callback`
 5. **Register application** → anote o **Client ID** → **Generate a new client
    secret** e copie na hora
 
@@ -197,7 +197,7 @@ mandar as mensagens:
 curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://commitpost.vercel.app/api/telegram/webhook",
+    "url": "https://commit-post.vercel.app/api/telegram/webhook",
     "secret_token": "<TELEGRAM_WEBHOOK_SECRET>"
   }'
 ```
@@ -215,7 +215,7 @@ link do bot na tela de introdução.
 ## Depois disso, nada mais é manual
 
 Com o GitHub App e o app do LinkedIn criados, o operador não precisa reunir
-dado nenhum de ninguém. Cada dev entra em `commitpost.vercel.app`, faz login
+dado nenhum de ninguém. Cada dev entra em `commit-post.vercel.app`, faz login
 com o GitHub e segue a tela de introdução:
 
 | Passo na tela | O que acontece por baixo |
