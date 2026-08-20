@@ -6,6 +6,12 @@
  * sabe se já foi cumprido porque olha o banco, e cada botão leva direto para o
  * lugar onde a coisa se resolve.
  *
+ * O que É passo e o que NÃO é foi decidido pelo mesmo critério: só entra na
+ * lista numerada o que impede o sistema de funcionar. A lista de termos
+ * proibidos fica embaixo, fora da contagem — ela é proposta sozinha, dá para
+ * ajustar quando quiser, e transformá-la num passo obrigatório fazia o
+ * onboarding parecer mais longo do que é sem proteger nada a mais.
+ *
  * Ela é um Server Component: os dados vêm do banco na renderização e os
  * formulários chamam Server Actions. Não há estado de cliente para
  * dessincronizar do servidor.
@@ -13,10 +19,7 @@
 
 import type { ReactNode } from "react";
 import { eq } from "drizzle-orm";
-import {
-  currentOrNewLinkCode,
-  telegramDeepLink,
-} from "@commitpost/core/auth";
+import { currentOrNewLinkCode, telegramDeepLink } from "@commitpost/core/auth";
 import { deniedTerms, githubInstallations, oauthTokens, userEmails } from "@commitpost/core/db";
 import { fetchBotUsername } from "@commitpost/core/telegram";
 import { computeOnboarding, type OnboardingStep } from "@commitpost/core/onboarding";
@@ -25,7 +28,6 @@ import { GITHUB_COLLAB_PROVIDER, LINKEDIN_PROVIDER } from "@/lib/providers";
 import {
   adicionarEmail,
   adicionarTermo,
-  confirmarDenylistVazia,
   desvincularTelegram,
   removerEmail,
   removerTermo,
@@ -71,10 +73,7 @@ export default async function OnboardingPage({
   const params = await searchParams;
 
   const [instalacoes, emails, termos, tokens] = await Promise.all([
-    database
-      .select()
-      .from(githubInstallations)
-      .where(eq(githubInstallations.userId, user.id)),
+    database.select().from(githubInstallations).where(eq(githubInstallations.userId, user.id)),
     database.select().from(userEmails).where(eq(userEmails.userId, user.id)),
     database.select().from(deniedTerms).where(eq(deniedTerms.userId, user.id)),
     database
@@ -88,8 +87,6 @@ export default async function OnboardingPage({
   const { steps, ready, next } = computeOnboarding({
     installationCount: instalacoes.length,
     emailCount: emails.length,
-    deniedTermCount: termos.length,
-    denylistAcknowledged: user.denylistAcknowledgedAt !== null,
     telegramLinked: user.telegramChatId !== null,
     hasCollaborationGrant: providers.has(GITHUB_COLLAB_PROVIDER),
     hasLinkedIn: providers.has(LINKEDIN_PROVIDER),
@@ -99,7 +96,8 @@ export default async function OnboardingPage({
 
   // Só emite código de vínculo se o passo estiver aberto — não faz sentido
   // manter um código vivo para quem já vinculou.
-  const bot = user.telegramChatId === null ? await botUsername(configuration.TELEGRAM_BOT_TOKEN) : null;
+  const bot =
+    user.telegramChatId === null ? await botUsername(configuration.TELEGRAM_BOT_TOKEN) : null;
   const linkTelegram =
     bot === null ? null : telegramDeepLink(bot, await currentOrNewLinkCode(database, user.id));
 
@@ -134,9 +132,9 @@ export default async function OnboardingPage({
       {aviso !== undefined && <Recado tom="aviso">{aviso}</Recado>}
 
       <p>
-        Quatro passos e o sistema começa a trabalhar. Ele lê seus commits, descreve
-        o que foi resolvido em linguagem de gente, e manda 2 a 3 versões no seu
-        Telegram. <strong>Nada é publicado sem você aprovar.</strong>
+        Conecte o GitHub e o Telegram e o sistema começa a trabalhar. Ele lê seus
+        commits, descreve o que foi resolvido em linguagem de gente, e manda 2 a 3
+        versões para você escolher. <strong>Nada é publicado sem você aprovar.</strong>
       </p>
 
       {ready ? (
@@ -148,12 +146,9 @@ export default async function OnboardingPage({
       <ol style={{ listStyle: "none", padding: 0, margin: "1.5rem 0 0" }}>
         {steps.map((step) => (
           <Passo key={step.id} step={step} destacado={step.id === next}>
-            {step.id === "github" && (
-              <Github instalacoes={instalacoes} />
-            )}
-            {step.id === "emails" && <Emails emails={emails} />}
-            {step.id === "denylist" && (
-              <Denylist termos={termos} confirmada={user.denylistAcknowledgedAt !== null} />
+            {step.id === "github" && <Github instalacoes={instalacoes} emails={emails} />}
+            {step.id === "collaborations" && (
+              <Colaboracoes concedido={step.done} disponivel={step.available} />
             )}
             {step.id === "telegram" && (
               <Telegram
@@ -162,13 +157,12 @@ export default async function OnboardingPage({
                 botConfigurado={bot !== null || user.telegramChatId !== null}
               />
             )}
-            {step.id === "collaborations" && (
-              <Colaboracoes concedido={step.done} disponivel={step.available} />
-            )}
             {step.id === "linkedin" && <LinkedIn disponivel={step.available} />}
           </Passo>
         ))}
       </ol>
+
+      <Denylist termos={termos} />
     </main>
   );
 }
@@ -198,6 +192,12 @@ const botaoPrincipal = {
   font: "inherit",
   fontSize: "0.9rem",
   textDecoration: "none",
+} as const;
+
+const nota = {
+  fontSize: "0.85rem",
+  color: CORES.indisponivel,
+  marginBottom: 0,
 } as const;
 
 function Recado({ tom, children }: { tom: "erro" | "aviso" | "feito"; children: ReactNode }) {
@@ -276,6 +276,22 @@ function Item({ children }: { children: ReactNode }) {
   );
 }
 
+/** Separa as duas metades do passo do GitHub sem sugerir que são passos. */
+function Divisor({ titulo }: { titulo: string }) {
+  return (
+    <h3
+      style={{
+        fontSize: "0.9rem",
+        margin: "1.25rem 0 0.35rem",
+        paddingTop: "0.9rem",
+        borderTop: `1px solid ${CORES.fundo}`,
+      }}
+    >
+      {titulo}
+    </h3>
+  );
+}
+
 const campo = {
   flex: 1,
   padding: "0.45rem 0.6rem",
@@ -292,8 +308,15 @@ const campo = {
 
 function Github({
   instalacoes,
+  emails,
 }: {
-  instalacoes: { id: number; accountLogin: string; accountType: string; suspendedAt: Date | null }[];
+  instalacoes: {
+    id: number;
+    accountLogin: string;
+    accountType: string;
+    suspendedAt: Date | null;
+  }[];
+  emails: { id: number; email: string; source: string }[];
 }) {
   return (
     <>
@@ -322,17 +345,17 @@ function Github({
         </a>
       </div>
 
-      <p style={{ fontSize: "0.85rem", color: CORES.indisponivel, marginBottom: 0 }}>
+      <p style={nota}>
         Se os repositórios são de uma organização, quem instala precisa ser admin dela.
         Uma instalação cobre todos os repos que você escolher.
       </p>
-    </>
-  );
-}
 
-function Emails({ emails }: { emails: { id: number; email: string; source: string }[] }) {
-  return (
-    <>
+      <Divisor titulo="Seus e-mails de autor" />
+      <p style={{ margin: "0 0 0.7rem", color: "#3c4043", fontSize: "0.95rem" }}>
+        É por eles que o sistema reconhece um commit como seu. O do trabalho costuma
+        ser diferente do pessoal.
+      </p>
+
       {emails.length > 0 && (
         <Lista>
           {emails.map((e) => (
@@ -340,7 +363,10 @@ function Emails({ emails }: { emails: { id: number; email: string; source: strin
               <span style={{ wordBreak: "break-all" }}>
                 {e.email}
                 {e.source === "github" && (
-                  <span style={{ color: CORES.indisponivel, fontSize: "0.85rem" }}> · do GitHub</span>
+                  <span style={{ color: CORES.indisponivel, fontSize: "0.85rem" }}>
+                    {" "}
+                    · do GitHub
+                  </span>
                 )}
               </span>
               <form action={removerEmail}>
@@ -368,79 +394,51 @@ function Emails({ emails }: { emails: { id: number; email: string; source: strin
         </button>
       </form>
 
-      <p style={{ fontSize: "0.85rem", color: CORES.indisponivel, marginBottom: 0 }}>
+      <p style={nota}>
         Confira com <code>git config user.email</code> na máquina onde você trabalha.
       </p>
     </>
   );
 }
 
-function Denylist({
-  termos,
-  confirmada,
-}: {
-  termos: { id: number; term: string; source: string }[];
-  confirmada: boolean;
-}) {
-  const automaticos = termos.filter((t) => t.source === "auto").length;
+function Colaboracoes({ concedido, disponivel }: { concedido: boolean; disponivel: boolean }) {
+  if (!disponivel) {
+    return (
+      <p style={{ color: CORES.indisponivel, margin: 0 }}>
+        O operador ainda não configurou este caminho.
+      </p>
+    );
+  }
 
   return (
     <>
-      {termos.length > 0 && (
-        <Lista>
-          {termos.map((t) => (
-            <Item key={t.id}>
-              <span style={{ wordBreak: "break-word" }}>
-                {t.term}
-                {t.source === "auto" && (
-                  <span style={{ color: CORES.indisponivel, fontSize: "0.85rem" }}> · sugerido</span>
-                )}
-              </span>
-              <form action={removerTermo}>
-                <input type="hidden" name="id" value={t.id} />
-                <button type="submit" style={botaoDiscreto}>
-                  Remover
-                </button>
-              </form>
-            </Item>
-          ))}
-        </Lista>
-      )}
+      <details style={{ marginBottom: "0.75rem" }}>
+        <summary style={{ cursor: "pointer" }}>O que exatamente você está concedendo</summary>
+        <div style={{ fontSize: "0.9rem", color: "#3c4043", marginTop: "0.5rem" }}>
+          <p>
+            Este passo usa um acesso do GitHub que dá <strong>leitura e escrita</strong> em
+            todos os repositórios que você enxerga. Não é escolha nossa: o GitHub não
+            oferece um acesso de somente-leitura para repositório privado por este caminho.
+          </p>
+          <p style={{ marginBottom: 0 }}>
+            O que fazemos com isso: só leitura, e nada além de listar commits seus. O
+            sistema não tem nenhuma função que escreva no GitHub. O acesso fica cifrado
+            no banco, e você pode revogá-lo a qualquer momento em{" "}
+            <a href="https://github.com/settings/applications" target="_blank" rel="noreferrer">
+              github.com/settings/applications
+            </a>
+            .
+          </p>
+        </div>
+      </details>
 
-      <form action={adicionarTermo} style={{ display: "flex", gap: "0.5rem" }}>
-        <input
-          type="text"
-          name="termo"
-          placeholder="Nome de empresa, cliente ou produto"
-          required
-          style={campo}
-          aria-label="Termo proibido"
-        />
-        <button type="submit" style={botaoPrincipal}>
-          Adicionar
-        </button>
-      </form>
+      <a href="/api/auth/github/oauth/authorize" style={concedido ? botaoDiscreto : botaoPrincipal}>
+        {concedido ? "Reautorizar" : "Conceder acesso de colaboração"}
+      </a>
 
-      {automaticos > 0 && (
-        <p style={{ fontSize: "0.85rem", color: CORES.indisponivel }}>
-          {automaticos === 1
-            ? "1 termo veio dos nomes dos seus repositórios."
-            : `${String(automaticos)} termos vieram dos nomes dos seus repositórios.`}{" "}
-          Remova o que for público.
-        </p>
-      )}
-
-      {termos.length === 0 && !confirmada && (
-        <form action={confirmarDenylistVazia} style={{ marginTop: "0.5rem" }}>
-          <button type="submit" style={botaoDiscreto}>
-            Não tenho nada a esconder
-          </button>
-        </form>
-      )}
-
-      <p style={{ fontSize: "0.85rem", color: CORES.indisponivel, marginBottom: 0 }}>
-        Esta lista nunca entra num post — ela existe para ser removida deles. Fica
-        só no banco, e não no repositório do projeto.
+      <p style={nota}>
+        Pule se todos os seus commits estão em contas onde você instalou o CommitPost
+        no passo anterior.
       </p>
     </>
   );
@@ -479,56 +477,9 @@ function Telegram({
       <a href={link} style={botaoPrincipal} target="_blank" rel="noreferrer">
         Abrir o bot e vincular
       </a>
-      <p style={{ fontSize: "0.85rem", color: CORES.indisponivel, marginBottom: 0 }}>
-        O link vale 15 minutos e serve uma vez. Basta abrir e tocar em iniciar —
-        você não precisa digitar nada.
-      </p>
-    </>
-  );
-}
-
-function Colaboracoes({ concedido, disponivel }: { concedido: boolean; disponivel: boolean }) {
-  if (!disponivel) {
-    return (
-      <p style={{ color: CORES.indisponivel, margin: 0 }}>
-        O operador ainda não configurou este caminho.
-      </p>
-    );
-  }
-
-  return (
-    <>
-      <details style={{ marginBottom: "0.75rem" }}>
-        <summary style={{ cursor: "pointer" }}>O que exatamente você está concedendo</summary>
-        <div style={{ fontSize: "0.9rem", color: "#3c4043", marginTop: "0.5rem" }}>
-          <p>
-            Este passo usa um acesso do GitHub que dá <strong>leitura e escrita</strong> em
-            todos os repositórios que você enxerga. Não é escolha nossa: o GitHub não
-            oferece um acesso de somente-leitura para repositório privado por este caminho.
-          </p>
-          <p style={{ marginBottom: 0 }}>
-            O que fazemos com isso: só leitura, e nada além de listar commits seus. O
-            sistema não tem nenhuma função que escreva no GitHub. O acesso fica cifrado
-            no banco, e você pode revogá-lo a qualquer momento em{" "}
-            <a
-              href="https://github.com/settings/applications"
-              target="_blank"
-              rel="noreferrer"
-            >
-              github.com/settings/applications
-            </a>
-            .
-          </p>
-        </div>
-      </details>
-
-      <a href="/api/auth/github/oauth/authorize" style={concedido ? botaoDiscreto : botaoPrincipal}>
-        {concedido ? "Reautorizar" : "Conceder acesso de colaboração"}
-      </a>
-
-      <p style={{ fontSize: "0.85rem", color: CORES.indisponivel, marginBottom: 0 }}>
-        Pule este passo se todos os seus commits estão em contas onde você instalou o
-        CommitPost no passo 1.
+      <p style={nota}>
+        O link vale 15 minutos e serve uma vez. Basta abrir e tocar em iniciar — você
+        não precisa digitar nada.
       </p>
     </>
   );
@@ -548,5 +499,91 @@ function LinkedIn({ disponivel }: { disponivel: boolean }) {
     <a href="/api/auth/linkedin/authorize" style={botaoPrincipal}>
       Conectar o LinkedIn
     </a>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Fora da lista: ajuste, não passo
+// ---------------------------------------------------------------------------
+
+/**
+ * A lista de termos proibidos.
+ *
+ * Fora da numeração de propósito. Ela é preenchida sozinha a cada conexão do
+ * GitHub, e não é ela que impede vazamento — o que impede é o filtro nunca
+ * copiar texto de commit para a saída. Aqui é ajuste fino, e pode esperar.
+ */
+function Denylist({ termos }: { termos: { id: number; term: string; source: string }[] }) {
+  const automaticos = termos.filter((t) => t.source === "auto").length;
+
+  return (
+    <details
+      style={{
+        border: `1px solid ${CORES.borda}`,
+        borderRadius: "0.75rem",
+        padding: "1rem 1.25rem",
+        marginTop: "1.5rem",
+        background: CORES.fundo,
+      }}
+    >
+      <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+        Palavras que nunca aparecem nos seus posts
+        <span style={{ color: CORES.indisponivel, fontWeight: 400 }}>
+          {" "}
+          · {String(termos.length)} — ajuste quando quiser
+        </span>
+      </summary>
+
+      <p style={{ margin: "0.75rem 0", color: "#3c4043", fontSize: "0.95rem" }}>
+        Preenchida sozinha com os nomes dos seus repositórios e das contas donas deles.
+        Isto <strong>não</strong> decide quais repositórios são lidos — decide o que
+        jamais é escrito. Acrescente clientes e produtos internos que não viraram
+        repositório.
+      </p>
+
+      {termos.length > 0 && (
+        <Lista>
+          {termos.map((t) => (
+            <Item key={t.id}>
+              <span style={{ wordBreak: "break-word" }}>
+                {t.term}
+                {t.source === "auto" && (
+                  <span style={{ color: CORES.indisponivel, fontSize: "0.85rem" }}>
+                    {" "}
+                    · sugerido
+                  </span>
+                )}
+              </span>
+              <form action={removerTermo}>
+                <input type="hidden" name="id" value={t.id} />
+                <button type="submit" style={botaoDiscreto}>
+                  Remover
+                </button>
+              </form>
+            </Item>
+          ))}
+        </Lista>
+      )}
+
+      <form action={adicionarTermo} style={{ display: "flex", gap: "0.5rem" }}>
+        <input
+          type="text"
+          name="termo"
+          placeholder="Nome de empresa, cliente ou produto"
+          required
+          style={campo}
+          aria-label="Termo proibido"
+        />
+        <button type="submit" style={botaoPrincipal}>
+          Adicionar
+        </button>
+      </form>
+
+      <p style={nota}>
+        {automaticos > 0 && `${String(automaticos)} vieram dos seus repositórios. `}
+        Termos com menos de 3 letras são ignorados pelo filtro, e a comparação é por
+        palavra inteira.
+      </p>
+    </details>
   );
 }

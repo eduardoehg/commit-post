@@ -10,7 +10,7 @@
  * está pronto é testável sem banco nenhum.
  */
 
-export type StepId = "github" | "emails" | "denylist" | "telegram" | "collaborations" | "linkedin";
+export type StepId = "github" | "collaborations" | "telegram" | "linkedin";
 
 // ---------------------------------------------------------------------------
 // Proposta de denylist
@@ -77,10 +77,12 @@ export function proposeDeniedTerms(
 export interface OnboardingState {
   /** Instalações do GitHub App vinculadas a este dev. */
   installationCount: number;
+  /**
+   * E-mails de autor. Entra no mesmo passo das instalações porque vem da mesma
+   * fonte — a conta do GitHub — e separá-los fazia o dev se perguntar o que um
+   * tinha a ver com o outro.
+   */
   emailCount: number;
-  deniedTermCount: number;
-  /** Marcado quando o dev declara, de propósito, não ter nada a esconder. */
-  denylistAcknowledged: boolean;
   telegramLinked: boolean;
   hasCollaborationGrant: boolean;
   hasLinkedIn: boolean;
@@ -110,13 +112,18 @@ export interface OnboardingSummary {
 }
 
 /**
- * A ordem importa e não é arbitrária.
+ * A ordem segue as fontes de credencial, não a criticidade.
  *
- * O GitHub vem primeiro porque é dele que saem os e-mails verificados e os
- * nomes de repositório que viram sugestão de denylist — os dois passos
- * seguintes ficam quase automáticos por causa dele. A denylist vem antes do
- * Telegram porque é a única com consequência irreversível: um post aprovado
- * sem ela é um vazamento que já aconteceu.
+ * Os dois passos de GitHub ficam juntos e primeiro — o opcional logo depois do
+ * obrigatório — porque quem está decidindo sobre acesso ao código decide as
+ * duas coisas de uma vez. Telegram e LinkedIn vêm depois porque são outra
+ * conversa.
+ *
+ * Repare que a denylist não é passo. Ela é proposta automaticamente no login e
+ * na concessão de colaborações, e fica disponível para ajuste — mas não segura
+ * ninguém, porque não é ela que impede vazamento. O que impede é o vocabulário
+ * fechado: nenhum texto de commit chega à saída, então nome de cliente não tem
+ * por onde sair mesmo com a lista vazia. Ver `redact/`.
  */
 export function computeOnboarding(state: OnboardingState): OnboardingSummary {
   const steps: OnboardingStep[] = [
@@ -124,37 +131,11 @@ export function computeOnboarding(state: OnboardingState): OnboardingSummary {
       id: "github",
       title: "Conectar o GitHub",
       summary:
-        "Instale o CommitPost nas contas cujos repositórios devem virar post. " +
-        "O acesso é de leitura e expira em uma hora a cada uso.",
-      done: state.installationCount > 0,
-      required: true,
-      available: true,
-    },
-    {
-      id: "emails",
-      title: "Confirmar seus e-mails de autor",
-      summary:
-        "É por e-mail de autor que o sistema sabe quais commits são seus. " +
-        "O do trabalho costuma ser diferente do pessoal.",
-      done: state.emailCount > 0,
-      required: true,
-      available: true,
-    },
-    {
-      id: "denylist",
-      title: "Definir o que nunca pode aparecer",
-      summary:
-        "Nomes de empresa, cliente, produto interno e dos repositórios. " +
-        "Esta lista fica só no banco e nunca entra num post.",
-      done: state.deniedTermCount > 0 || state.denylistAcknowledged,
-      required: true,
-      available: true,
-    },
-    {
-      id: "telegram",
-      title: "Receber os posts no Telegram",
-      summary: "É por onde você aprova ou recusa. Sem isso, nada é publicado.",
-      done: state.telegramLinked,
+        "Instale o CommitPost nas contas cujos repositórios devem virar post e " +
+        "confirme por quais e-mails você assina seus commits.",
+      // Instalação sem e-mail de autor coleta zero commits: é por e-mail que o
+      // sistema sabe o que é seu. Um sem o outro não é meio caminho, é nada.
+      done: state.installationCount > 0 && state.emailCount > 0,
       required: true,
       available: true,
     },
@@ -167,6 +148,14 @@ export function computeOnboarding(state: OnboardingState): OnboardingSummary {
       done: state.hasCollaborationGrant,
       required: false,
       available: state.collaborationsAvailable,
+    },
+    {
+      id: "telegram",
+      title: "Receber os posts no Telegram",
+      summary: "É por onde você aprova ou recusa. Sem isso, nada é publicado.",
+      done: state.telegramLinked,
+      required: true,
+      available: true,
     },
     {
       id: "linkedin",
@@ -182,10 +171,13 @@ export function computeOnboarding(state: OnboardingState): OnboardingSummary {
 
   const ready = steps.every((s) => s.done || !s.required);
 
-  // Simplesmente o primeiro pendente que dá para fazer. Um obrigatório ganha
-  // do opcional porque a lista põe todos os obrigatórios antes — invariante
-  // que existe um teste para segurar, e não uma comparação a mais aqui.
-  const next = steps.find((s) => !s.done && s.available)?.id ?? null;
+  // O obrigatório pendente ganha do opcional mesmo vindo depois na lista — e
+  // aqui isso é o caso: colaborações é opcional e está antes do Telegram. Sem
+  // esta primeira busca, o destaque cairia no passo que não segura ninguém.
+  const next =
+    steps.find((s) => s.required && !s.done)?.id ??
+    steps.find((s) => !s.done && s.available)?.id ??
+    null;
 
   return { steps, ready, next };
 }

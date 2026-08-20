@@ -151,6 +151,20 @@ existe, não porque alguém marcou uma caixa. `docs/setup-operador.md` cobre só
 que um aplicativo não pode fazer por si — criar as contas de plataforma antes
 de existir.
 
+**Só é passo o que impede o sistema de funcionar:** GitHub (instalação **e**
+e-mails de autor, juntos, porque vêm da mesma conta e um sem o outro coleta
+zero commits) e Telegram. Colaborações e LinkedIn são opcionais e ficam
+intercalados na ordem das credenciais, não da criticidade — por isso `next`
+procura primeiro um obrigatório pendente, já que um opcional vem antes do
+Telegram na lista.
+
+**A denylist não é passo.** Ela é proposta sozinha a cada conexão e fica num
+bloco de ajuste embaixo. Ela não é a barreira contra vazamento — quem impede é
+o vocabulário fechado, que não copia texto de commit para a saída. Exigi-la
+alongava o onboarding sem proteger nada a mais, e o que a tela precisa deixar
+claro é o contrário do que parecia: **esta lista não decide quais repositórios
+são lidos, decide o que jamais é escrito.**
+
 Quatro decisões que sustentam isso:
 
 **Nenhum token de usuário do GitHub é guardado.** O do login vive dentro da

@@ -72,8 +72,6 @@ describe("proposeDeniedTerms", () => {
 const ZERADO: OnboardingState = {
   installationCount: 0,
   emailCount: 0,
-  deniedTermCount: 0,
-  denylistAcknowledged: false,
   telegramLinked: false,
   hasCollaborationGrant: false,
   hasLinkedIn: false,
@@ -85,7 +83,6 @@ const COMPLETO: OnboardingState = {
   ...ZERADO,
   installationCount: 1,
   emailCount: 2,
-  deniedTermCount: 3,
   telegramLinked: true,
 };
 
@@ -102,55 +99,52 @@ describe("computeOnboarding", () => {
     expect(next).toBe("github");
   });
 
-  it("libera quando os quatro obrigatórios estão cumpridos", () => {
+  it("libera com os dois obrigatórios cumpridos", () => {
     expect(computeOnboarding(COMPLETO).ready).toBe(true);
   });
 
   it.each([
-    ["installationCount", { installationCount: 0 }],
-    ["emailCount", { emailCount: 0 }],
-    ["denylist", { deniedTermCount: 0 }],
+    ["instalação", { installationCount: 0 }],
+    ["e-mail de autor", { emailCount: 0 }],
     ["telegram", { telegramLinked: false }],
   ] as const)("segura o dev quando falta %s", (_nome, falta) => {
     expect(computeOnboarding({ ...COMPLETO, ...falta }).ready).toBe(false);
   });
 
-  it("aceita denylist vazia quando o dev declara que é de propósito", () => {
-    const semNada = { ...COMPLETO, deniedTermCount: 0 };
-    expect(computeOnboarding(semNada).ready).toBe(false);
-    expect(computeOnboarding({ ...semNada, denylistAcknowledged: true }).ready).toBe(true);
+  it("exige instalação E e-mail no mesmo passo", () => {
+    // Instalação sem e-mail de autor coleta zero commits, porque é por e-mail
+    // que o sistema sabe o que é seu. Um sem o outro não é meio caminho.
+    expect(feito({ ...ZERADO, installationCount: 1 }, "github")).toBe(false);
+    expect(feito({ ...ZERADO, emailCount: 1 }, "github")).toBe(false);
+    expect(feito({ ...ZERADO, installationCount: 1, emailCount: 1 }, "github")).toBe(true);
   });
 
-  it("conta a denylist como pronta por qualquer um dos dois caminhos", () => {
-    expect(feito({ ...ZERADO, deniedTermCount: 1 }, "denylist")).toBe(true);
-    expect(feito({ ...ZERADO, denylistAcknowledged: true }, "denylist")).toBe(true);
-    expect(feito(ZERADO, "denylist")).toBe(false);
+  it("não tem passo de denylist", () => {
+    // Ela é proposta sozinha e ajustável depois. Não segura ninguém porque não
+    // é ela que impede vazamento — quem impede é o vocabulário fechado.
+    const ids: string[] = computeOnboarding(ZERADO).steps.map((s) => s.id);
+    expect(ids).not.toContain("denylist");
+    expect(ids).toEqual(["github", "collaborations", "telegram", "linkedin"]);
   });
 
   it("opcional pendente não impede o dev de começar", () => {
-    // Colaborações e LinkedIn ficam abertos e mesmo assim `ready` é verdadeiro:
-    // é o que permite o MVP rodar sem o app do LinkedIn aprovado.
+    // É o que permite o MVP rodar sem o app do LinkedIn aprovado.
     const resultado = computeOnboarding(COMPLETO);
     expect(resultado.ready).toBe(true);
     expect(resultado.steps.find((s) => s.id === "linkedin")?.done).toBe(false);
     expect(resultado.steps.find((s) => s.id === "collaborations")?.done).toBe(false);
   });
 
-  it("um obrigatório pendente ganha do opcional na sugestão do próximo passo", () => {
-    // Colaborações vem depois na lista, mas o Telegram é que segura o dev.
+  it("destaca o obrigatório pendente mesmo com um opcional antes dele na lista", () => {
+    // Colaborações é opcional e vem ANTES do Telegram. Sem a busca por
+    // obrigatório primeiro, o destaque cairia no passo que não segura ninguém.
     const soFaltaTelegram = { ...COMPLETO, telegramLinked: false };
-    expect(computeOnboarding(soFaltaTelegram).next).toBe("telegram");
-  });
+    const { steps, next } = computeOnboarding(soFaltaTelegram);
 
-  it("todo passo obrigatório vem antes de qualquer opcional", () => {
-    // `next` confia nesta ordem em vez de comparar `required` na hora. Se
-    // alguém inserir um opcional no meio, é aqui que fica vermelho — e não em
-    // produção, com um dev sendo mandado ao LinkedIn antes da denylist.
-    const { steps } = computeOnboarding(ZERADO);
-    const obrigatorios = steps.flatMap((s, i) => (s.required ? [i] : []));
-    const opcionais = steps.flatMap((s, i) => (s.required ? [] : [i]));
-
-    expect(Math.min(...opcionais)).toBeGreaterThan(Math.max(...obrigatorios));
+    expect(steps.findIndex((s) => s.id === "collaborations")).toBeLessThan(
+      steps.findIndex((s) => s.id === "telegram"),
+    );
+    expect(next).toBe("telegram");
   });
 
   it("sugere o opcional só quando não sobrou obrigatório", () => {
@@ -174,11 +168,10 @@ describe("computeOnboarding", () => {
     expect(steps.find((s) => s.id === "linkedin")?.available).toBe(true);
   });
 
-  it("põe a denylist antes do Telegram", () => {
-    // A ordem não é decorativa: a denylist é o único passo com consequência
-    // irreversível, e o Telegram é o que dispara o primeiro post para aprovar.
+  it("põe os dois passos de GitHub juntos, no começo", () => {
+    // Quem está decidindo sobre acesso ao código decide as duas coisas de uma
+    // vez; Telegram e LinkedIn são outra conversa.
     const ordem = computeOnboarding(ZERADO).steps.map((s) => s.id);
-    expect(ordem.indexOf("denylist")).toBeLessThan(ordem.indexOf("telegram"));
-    expect(ordem.indexOf("github")).toBe(0);
+    expect(ordem.slice(0, 2)).toEqual(["github", "collaborations"]);
   });
 });

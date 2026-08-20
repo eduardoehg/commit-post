@@ -72,14 +72,6 @@ export const users = pgTable(
      */
     telegramChatId: text("telegram_chat_id"),
 
-    /**
-     * Marcado quando o dev declara explicitamente não ter nada a esconder.
-     * Existe para que "sem termos proibidos" seja uma escolha consciente e não
-     * um passo pulado sem querer — quem só tem repositório pessoal aberto
-     * realmente não tem, e exigir uma lista vazia seria teatro.
-     */
-    denylistAcknowledgedAt: timestamp("denylist_acknowledged_at", { withTimezone: true }),
-
     active: boolean().notNull().default(true),
     createdAt,
     updatedAt,

@@ -27,7 +27,6 @@ export interface SessionUser {
   displayName: string | null;
   avatarUrl: string | null;
   telegramChatId: string | null;
-  denylistAcknowledgedAt: Date | null;
   active: boolean;
 }
 
@@ -83,7 +82,6 @@ export async function resolveSession(
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
       telegramChatId: users.telegramChatId,
-      denylistAcknowledgedAt: users.denylistAcknowledgedAt,
       active: users.active,
     })
     .from(sessions)

@@ -112,24 +112,6 @@ export async function removerTermo(formData: FormData): Promise<void> {
   done();
 }
 
-/**
- * "Não tenho nada a esconder", dito de propósito.
- *
- * Existe para que uma lista vazia seja uma escolha e não um passo pulado sem
- * querer. Quem só tem repositório pessoal aberto realmente não tem termos a
- * proibir, e exigir uma lista fingida seria teatro.
- */
-export async function confirmarDenylistVazia(): Promise<void> {
-  const user = await requireUser();
-
-  await db()
-    .update(users)
-    .set({ denylistAcknowledgedAt: new Date(), updatedAt: new Date() })
-    .where(eq(users.id, user.id));
-
-  done();
-}
-
 export async function desvincularTelegram(): Promise<void> {
   const user = await requireUser();
 

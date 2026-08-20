@@ -220,12 +220,16 @@ com o GitHub e segue a tela de introdução:
 
 | Passo na tela | O que acontece por baixo |
 |---|---|
-| Conectar o GitHub | é o próprio login; ao voltar, o sistema pergunta ao GitHub quais instalações aquele dev enxerga |
-| Confirmar e-mails | lidos da API do GitHub, o dev só marca e completa |
-| Proteger o que não pode vazar | o sistema **propõe** a lista a partir dos nomes reais dos repositórios e da organização; o dev confirma e acrescenta |
-| Receber no Telegram | link `t.me/commitpost_bot?start=<código>` amarra o `chat_id` |
+| Conectar o GitHub | é o próprio login; ao voltar, o sistema pergunta quais instalações aquele dev enxerga e lê os e-mails verificados dele |
 | Incluir colaborações | OAuth clássico, opcional — só para repos de outras pessoas |
+| Receber no Telegram | link `t.me/commitpost_bot?start=<código>` amarra o `chat_id` |
 | Publicar no LinkedIn | OAuth, opcional — sem ele o dev copia o post aprovado do Telegram |
+
+Fora da lista, num bloco de ajuste, fica a **lista de palavras que nunca
+aparecem nos posts**. Ela é preenchida sozinha a partir dos nomes reais dos
+repositórios e das contas donas, e não é passo obrigatório: não é ela que
+impede vazamento — quem impede é o vocabulário fechado do filtro, que nunca
+copia texto de commit para a saída.
 
 O botão *"Já instalei, atualizar"* é o mesmo login: o sistema não guarda token
 de usuário do GitHub, então descobrir uma instalação nova é uma ida e volta
