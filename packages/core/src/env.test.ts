@@ -164,6 +164,32 @@ describe("loadWebEnv", () => {
     );
   });
 
+  it("trata variável opcional declarada vazia como ausente", () => {
+    // `FOO=` é como o .env.example distribui tudo que ainda não foi
+    // preenchido. Tratar isso como "presente porém inválida" quebraria o boot
+    // exatamente para quem copiou o exemplo à risca — que foi o que aconteceu.
+    const env = loadWebEnv({
+      ...validWeb,
+      TELEGRAM_CHAT_ID: "",
+      GITHUB_OAUTH_CLIENT_ID: "",
+      GITHUB_OAUTH_CLIENT_SECRET: "  ",
+      LINKEDIN_CLIENT_ID: "",
+      LINKEDIN_REDIRECT_URI: "",
+    });
+
+    expect(env.TELEGRAM_CHAT_ID).toBeUndefined();
+    expect(env.GITHUB_OAUTH_CLIENT_ID).toBeUndefined();
+    expect(env.GITHUB_OAUTH_CLIENT_SECRET).toBeUndefined();
+    expect(env.LINKEDIN_REDIRECT_URI).toBeUndefined();
+  });
+
+  it("continua recusando valor opcional preenchido errado", () => {
+    // Vazio vale como ausente; errado continua sendo errado.
+    expect(() => loadWebEnv({ ...validWeb, LINKEDIN_REDIRECT_URI: "commitpost.app/cb" })).toThrow(
+      EnvValidationError,
+    );
+  });
+
   it("mantém o OAuth de colaborações opcional", () => {
     expect(loadWebEnv(validWeb).GITHUB_OAUTH_CLIENT_ID).toBeUndefined();
     expect(

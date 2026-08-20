@@ -70,7 +70,25 @@ function startPayload(text: string | null): string | null {
  * retentativas por causa de mensagem de terceiro é pior do que o silêncio.
  * Toda saída daqui é 200, menos o secret errado — esse não é o Telegram.
  */
-const OK = new Response("ok", { status: 200 });
+function ok(): Response {
+  return new Response("ok", { status: 200 });
+}
+
+/**
+ * Responder é cortesia, não parte da transação.
+ *
+ * Se o envio falhar depois de o vínculo já ter sido gravado, deixar o erro
+ * subir devolveria 500 — e o Telegram reenviaria o mesmo `/start` para
+ * sempre, contra um código que já foi consumido. O dev veria o bot mudo e uma
+ * fila de retentativas girando atrás.
+ */
+async function tentarResponder(token: string, chatId: string, texto: string): Promise<void> {
+  try {
+    await sendMessage(token, chatId, texto);
+  } catch {
+    // Nada a fazer daqui. O estado que importa já está no banco.
+  }
+}
 
 export async function POST(request: Request): Promise<Response> {
   const configuration = env();
@@ -86,40 +104,40 @@ export async function POST(request: Request): Promise<Response> {
 
   const update: unknown = await request.json();
   const { chatId, text } = readUpdate(update);
-  if (chatId === null) return OK;
+  if (chatId === null) return ok();
 
   const database = db();
   const codigo = startPayload(text);
 
   if (codigo !== null) {
     if (codigo === "") {
-      await sendMessage(
+      await tentarResponder(
         configuration.TELEGRAM_BOT_TOKEN,
         chatId,
         "Para vincular sua conta, abra o link que aparece na tela de introdução do CommitPost.",
       );
-      return OK;
+      return ok();
     }
 
     const userId = await redeemLinkCode(database, codigo);
     if (userId === null) {
       // Sem distinguir "não existe" de "expirou": para quem está do outro lado
       // a ação é a mesma, e a diferença só ajudaria quem chuta códigos.
-      await sendMessage(
+      await tentarResponder(
         configuration.TELEGRAM_BOT_TOKEN,
         chatId,
         "Este link não vale mais. Gere um novo na tela de introdução — eles duram 15 minutos.",
       );
-      return OK;
+      return ok();
     }
 
     await bindTelegramChat(database, userId, chatId);
-    await sendMessage(
+    await tentarResponder(
       configuration.TELEGRAM_BOT_TOKEN,
       chatId,
       "Pronto. É por aqui que seus posts vão chegar para aprovação.",
     );
-    return OK;
+    return ok();
   }
 
   const donos = await database
@@ -129,10 +147,10 @@ export async function POST(request: Request): Promise<Response> {
     .limit(1);
 
   const dono = donos[0];
-  if (dono === undefined || !dono.active) return OK;
+  if (dono === undefined || !dono.active) return ok();
 
   // TODO Fase 5: parseCallbackData → atualizar status → answerCallbackQuery
   // para o botão parar de girar.
 
-  return OK;
+  return ok();
 }

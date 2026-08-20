@@ -78,6 +78,25 @@ const httpUrl = z
   .string()
   .url("precisa ser uma URL completa (com http:// ou https://)");
 
+/**
+ * Opcional de verdade: declarada vazia vale como ausente.
+ *
+ * `FOO=` é como o `.env.example` distribui tudo que ainda não foi preenchido,
+ * e é como um painel de deploy deixa uma variável que alguém apagou. Tratar
+ * isso como "presente porém inválida" faria o boot quebrar exatamente para
+ * quem seguiu o exemplo à risca.
+ */
+function optional<T extends z.ZodTypeAny>(schema: T) {
+  return z
+    .string()
+    .optional()
+    .transform((raw) => {
+      const limpo = raw?.trim() ?? "";
+      return limpo === "" ? undefined : limpo;
+    })
+    .pipe(schema.optional());
+}
+
 /** Segredos usados para assinar/validar. 32 bytes em hex = 64 chars. */
 const secret = z
   .string()
@@ -116,7 +135,7 @@ const webSchema = z.object({
    * sim qualquer chat vinculado a um usuário ativo em `users.telegram_chat_id`.
    * A allowlist mora no banco porque é ela que cresce a cada dev novo.
    */
-  TELEGRAM_CHAT_ID: z.string().min(1).optional(),
+  TELEGRAM_CHAT_ID: optional(z.string().min(1)),
 
   TOKEN_ENCRYPTION_KEY: encryptionKey,
 
@@ -144,8 +163,8 @@ const webSchema = z.object({
    * fora das próprias contas não precisa conceder escopo `repo`. Faltando,
    * o passo aparece desabilitado na tela de introdução em vez de sumir.
    */
-  GITHUB_OAUTH_CLIENT_ID: z.string().min(1).optional(),
-  GITHUB_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
+  GITHUB_OAUTH_CLIENT_ID: optional(z.string().min(1)),
+  GITHUB_OAUTH_CLIENT_SECRET: optional(z.string().min(1)),
 
   /**
    * Logins do GitHub autorizados a entrar, separados por vírgula.
@@ -163,9 +182,9 @@ const webSchema = z.object({
   PANEL_TOKEN_SECRET: secret,
   APP_BASE_URL: httpUrl,
   // LinkedIn entra na Fase 7; opcional até lá para não travar o app web.
-  LINKEDIN_CLIENT_ID: z.string().min(1).optional(),
-  LINKEDIN_CLIENT_SECRET: z.string().min(1).optional(),
-  LINKEDIN_REDIRECT_URI: httpUrl.optional(),
+  LINKEDIN_CLIENT_ID: optional(z.string().min(1)),
+  LINKEDIN_CLIENT_SECRET: optional(z.string().min(1)),
+  LINKEDIN_REDIRECT_URI: optional(httpUrl),
 });
 
 export type PipelineEnv = z.infer<typeof pipelineSchema>;
