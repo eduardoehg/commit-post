@@ -21,6 +21,7 @@ import {
   type TokenExchange,
 } from "@commitpost/core/github";
 import { GITHUB_COLLAB_PROVIDER } from "@/lib/providers";
+import { proposeTermsFromCollaborations } from "@/lib/github-sync";
 import { finishOAuth } from "@/lib/oauth";
 import { absoluteUrl, backTo, db, env, requireUser } from "@/lib/runtime";
 
@@ -89,7 +90,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       },
     });
 
+  // A proposta de denylist a partir das colaborações é o motivo principal de
+  // fazer isto aqui e agora: é nos repositórios de outras pessoas que moram os
+  // nomes que ninguém lembra de esconder. Falhar não desfaz a concessão — o
+  // token já está gravado e serve à coleta.
+  let propostos = 0;
+  try {
+    propostos = await proposeTermsFromCollaborations(user.id, grantee.login, exchanged.accessToken);
+  } catch {
+    return backTo("/onboarding", {
+      aviso:
+        "Colaborações conectadas, mas não deu para listar os repositórios agora. " +
+        "Confira a lista de termos proibidos à mão antes do primeiro ciclo.",
+    });
+  }
+
   return backTo("/onboarding", {
-    aviso: "Repositórios de colaboração conectados. O acesso é usado apenas para leitura.",
+    aviso:
+      propostos === 0
+        ? "Colaborações conectadas. O acesso é usado apenas para leitura."
+        : `Colaborações conectadas. ${String(propostos)} nome(s) novo(s) entraram na lista de ` +
+          `termos proibidos — revise antes do primeiro ciclo.`,
   });
 }

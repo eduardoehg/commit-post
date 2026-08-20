@@ -1,5 +1,73 @@
 import { describe, expect, it } from "vitest";
-import { computeOnboarding, type OnboardingState, type StepId } from "./onboarding";
+import {
+  computeOnboarding,
+  proposeDeniedTerms,
+  type OnboardingState,
+  type StepId,
+} from "./onboarding";
+
+describe("proposeDeniedTerms", () => {
+  it("propõe o nome do repositório e o do dono", () => {
+    // O dono é quem identifica o empregador. `portal` sozinho não denuncia
+    // ninguém — e também não protege ninguém.
+    expect(proposeDeniedTerms([{ name: "portal", owner: "acme-corp" }], [], "eu")).toEqual([
+      "portal",
+      "acme-corp",
+    ]);
+  });
+
+  it("propõe a conta onde o App foi instalado", () => {
+    expect(proposeDeniedTerms([], ["acme-corp"], "eu")).toEqual(["acme-corp"]);
+  });
+
+  it("nunca propõe o login do próprio dev como dono", () => {
+    // Censurar a identidade pública do autor não protegeria nada; só faria o
+    // texto do post perder quem o escreveu.
+    const termos = proposeDeniedTerms(
+      [{ name: "meu-projeto", owner: "EduardoEHG" }],
+      ["eduardoehg"],
+      "eduardoehg",
+    );
+    expect(termos).toEqual(["meu-projeto"]);
+  });
+
+  it("propõe um repositório que se chama como o dev", () => {
+    // Diferente do caso acima: é nome de repositório, não a pessoa aparecendo
+    // como dona de alguma coisa. Continua sendo um nome a esconder.
+    expect(proposeDeniedTerms([{ name: "eduardoehg", owner: "acme" }], [], "eduardoehg")).toEqual([
+      "eduardoehg",
+      "acme",
+    ]);
+  });
+
+  it("não repete o mesmo dono aparecendo em vários repositórios", () => {
+    const termos = proposeDeniedTerms(
+      [
+        { name: "api", owner: "acme" },
+        { name: "web", owner: "acme" },
+        { name: "API", owner: "ACME" },
+      ],
+      [],
+      "eu",
+    );
+    expect(termos).toEqual(["api", "acme", "web"]);
+  });
+
+  it("descarta vazio e espaço em branco", () => {
+    // `owner` vem vazio quando o GitHub não devolve a conta. Um termo em
+    // branco na denylist censuraria tudo.
+    expect(proposeDeniedTerms([{ name: "api", owner: "" }], ["  "], "eu")).toEqual(["api"]);
+  });
+
+  it("preserva a grafia original, mesmo deduplicando sem diferenciar caixa", () => {
+    // A denylist é lida por gente na tela. `ACME-Corp` precisa aparecer como
+    // foi escrito para o dev reconhecer o que está removendo.
+    expect(proposeDeniedTerms([{ name: "API-Gateway", owner: "ACME-Corp" }], [], "eu")).toEqual([
+      "API-Gateway",
+      "ACME-Corp",
+    ]);
+  });
+});
 
 const ZERADO: OnboardingState = {
   installationCount: 0,

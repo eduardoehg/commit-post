@@ -12,6 +12,7 @@
 
 import { and, eq, notInArray } from "drizzle-orm";
 import {
+  fetchCollaboratorRepos,
   fetchInstallationRepos,
   fetchVerifiedEmails,
   fetchViewerInstallations,
@@ -19,6 +20,7 @@ import {
   type GitHubViewer,
 } from "@commitpost/core/github";
 import { deniedTerms, githubInstallations, userEmails } from "@commitpost/core/db";
+import { proposeDeniedTerms } from "@commitpost/core/onboarding";
 import { db } from "./runtime";
 
 export interface SyncResult {
@@ -104,25 +106,54 @@ export async function syncFromGitHub(
   }
 
   // --- Sugestão de denylist ----------------------------------------------
-  const termos = new Set<string>();
-  const meuLogin = viewer.login.toLowerCase();
+  // O nome da conta onde o App foi instalado costuma ser o do empregador.
+  const contas = installations.map((i) => i.accountLogin);
+  const repos = [];
 
   for (const i of installations) {
-    // O nome da conta onde o App foi instalado costuma ser a empresa. O login
-    // do próprio dev fica de fora: é a identidade pública dele, não cliente.
-    if (i.accountLogin.toLowerCase() !== meuLogin) termos.add(i.accountLogin);
-
     try {
-      for (const repo of await fetchInstallationRepos(i.installationId, userToken)) {
-        termos.add(repo.name);
-        if (repo.owner !== "" && repo.owner.toLowerCase() !== meuLogin) termos.add(repo.owner);
-      }
+      repos.push(...(await fetchInstallationRepos(i.installationId, userToken)));
     } catch {
       // Uma instalação inacessível não pode impedir as outras de contribuir.
     }
   }
 
-  let suggestedTerms = 0;
+  const termos = proposeDeniedTerms(repos, contas, viewer.login);
+
+  return {
+    installations: installations.length,
+    emailsAdded,
+    suggestedTerms: await gravarTermos(userId, termos),
+    emailsUnavailable,
+  };
+}
+
+/**
+ * Propõe termos a partir dos repositórios de COLABORAÇÃO.
+ *
+ * Sem isto a proposta cobria exatamente os repositórios errados. A denylist
+ * automática existe porque pedir que alguém *lembre* de todo nome de cliente é
+ * a parte mais frágil do processo — e é nas colaborações, nos repositórios de
+ * outras pessoas, que esses nomes moram. Cobrir só o que a instalação enxerga
+ * era propor justamente onde não havia nada a esconder.
+ *
+ * Roda logo depois da concessão, com o token que acabou de chegar. Falhar aqui
+ * não desfaz a concessão: o token já está gravado e serve à coleta; o que se
+ * perde é a sugestão, que o dev pode preencher à mão.
+ */
+export async function proposeTermsFromCollaborations(
+  userId: number,
+  viewerLogin: string,
+  oauthToken: string,
+): Promise<number> {
+  const repos = await fetchCollaboratorRepos(oauthToken);
+  return gravarTermos(userId, proposeDeniedTerms(repos, [], viewerLogin));
+}
+
+async function gravarTermos(userId: number, termos: Iterable<string>): Promise<number> {
+  const database = db();
+  let gravados = 0;
+
   for (const term of termos) {
     const inseridos = await database
       .insert(deniedTerms)
@@ -130,13 +161,8 @@ export async function syncFromGitHub(
       .onConflictDoNothing()
       .returning({ id: deniedTerms.id });
 
-    suggestedTerms += inseridos.length;
+    gravados += inseridos.length;
   }
 
-  return {
-    installations: installations.length,
-    emailsAdded,
-    suggestedTerms,
-    emailsUnavailable,
-  };
+  return gravados;
 }
