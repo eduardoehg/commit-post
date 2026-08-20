@@ -28,7 +28,7 @@ GitHub Actions (cron, UTC)
 Vercel — apps/web (só o que precisa ser HTTP público)
   ├─ POST /api/telegram/webhook   valida secret + allowlist de chat_id
   ├─ GET  /post/[id]?t=<hmac>     painel de edição, link assinado  (Fase 6)
-  └─ GET  /api/linkedin/callback  OAuth, grava token + expires_at  (Fase 7)
+  └─ GET  /api/auth/linkedin/callback  OAuth, grava token   (Fase 7)
 ```
 
 ## Decisões que divergem da especificação original
