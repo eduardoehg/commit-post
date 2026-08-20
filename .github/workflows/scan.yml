@@ -1,0 +1,53 @@
+# Dispara o pipeline do CommitPost.
+#
+# O pipeline roda INTEIRO aqui, no runner — não numa API route da Vercel.
+# Isso evita o limite de duração de função serverless (GitHub + Claude +
+# Telegram somados passam fácil de 60s) e dispensa um endpoint HTTP público
+# só para ser chamado por nós mesmos.
+name: scan
+
+on:
+  schedule:
+    # Segundas, 12:00 UTC = 09:00 no horário de Brasília.
+    # Cron do Actions é SEMPRE UTC. Ajuste junto com GITHUB_LOOKBACK_DAYS.
+    - cron: "0 12 * * 1"
+
+  # Obrigatório, não conveniência: workflows agendados são desabilitados
+  # automaticamente após 60 dias sem atividade no repositório. O disparo
+  # manual é a saída quando isso acontece — e serve para testar sem esperar.
+  workflow_dispatch:
+
+concurrency:
+  group: commitpost-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Atenção aos nomes à DIREITA: o GitHub reserva o prefixo "GITHUB_" e
+      # recusa secrets/variables que comecem com ele — daí o prefixo
+      # COMMITPOST_. Os nomes à esquerda são os que o código realmente lê.
+      - name: Rodar pipeline
+        run: npm run pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GITHUB_TOKEN: ${{ secrets.COMMITPOST_GITHUB_TOKEN }}
+          GITHUB_AUTHOR_EMAILS: ${{ secrets.COMMITPOST_AUTHOR_EMAILS }}
+          GITHUB_LOOKBACK_DAYS: ${{ vars.COMMITPOST_LOOKBACK_DAYS || '7' }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          PANEL_TOKEN_SECRET: ${{ secrets.PANEL_TOKEN_SECRET }}
+          APP_BASE_URL: ${{ vars.COMMITPOST_BASE_URL }}

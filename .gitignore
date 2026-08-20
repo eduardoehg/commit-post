@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# builds
+dist/
+.next/
+out/
+build/
+
+# turborepo
+.turbo/
+
+# env — NUNCA commitar
+.env
+.env.local
+.env.*.local
+
+# testes / coverage
+coverage/
+
+# vercel
+.vercel
+
+# editores / SO
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+# artefatos do tsc
+*.tsbuildinfo

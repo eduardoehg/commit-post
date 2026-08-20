@@ -1,0 +1,28 @@
+{
+  "name": "@commitpost/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./env": "./src/env.ts",
+    "./db": "./src/db/index.ts",
+    "./github": "./src/github/index.ts",
+    "./llm": "./src/llm/index.ts",
+    "./telegram": "./src/telegram/index.ts",
+    "./linkedin": "./src/linkedin/index.ts",
+    "./redact": "./src/redact/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
+  }
+}

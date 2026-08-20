@@ -1,0 +1,10 @@
+# Normaliza quebras de linha: LF no repositório, nativo no working copy.
+# Sem isso, o mesmo arquivo aparece como modificado entre Windows e o runner
+# Linux do GitHub Actions.
+* text=auto eol=lf
+
+# Binários — nunca converter.
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
