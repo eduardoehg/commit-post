@@ -48,12 +48,21 @@ instalar.
    varre por agendamento; não precisa receber eventos do GitHub, e deixar
    ligado só cria superfície à toa.
 
-4. **Permissões — só duas, ambas de leitura.** Em *Repository permissions*:
+4. **Permissões — só leitura, em três lugares.** Em *Repository permissions*:
    - **Contents:** Read-only — ler os commits
    - **Metadata:** Read-only — obrigatória pelo GitHub
 
    Nenhuma permissão de escrita, em lugar nenhum. Qualquer coisa além disso
    aparece na tela de instalação do dev e vira uma pergunta a responder.
+
+   Logo abaixo, em *Account permissions*:
+
+   - **Email addresses:** Read-only
+
+   Esta é fácil de esquecer porque fica numa seção separada das de
+   repositório. Sem ela, a tela de introdução não consegue ler os e-mails
+   verificados do dev e o passo de confirmar e-mails de autor precisa ser
+   digitado à mão — que é justamente o que queremos evitar.
 
 5. **Permitir instalação por outras contas.** Em *Where can this GitHub App be
    installed?*, escolha **Any account**. Sem isso o segundo dev não consegue
