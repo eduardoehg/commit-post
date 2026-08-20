@@ -17,6 +17,10 @@ pode se criar antes de existir.
 > estar como **Read-only**. É a permissão mais fácil de esquecer, porque fica
 > numa seção separada das de repositório. Mudar antes de existir qualquer
 > instalação é de graça; depois, cada dev precisa aceitar a mudança.
+>
+> Para conferir sem abrir o painel, com as credenciais no `.env.local`:
+> `GET /app` autenticado com o JWT do app devolve `permissions`. O que precisa
+> estar lá é `contents: read`, `emails: read` e `metadata: read`.
 ## O que muda com multiusuário
 
 No banco, multi-dev é barato: uma tabela de usuários e uma coluna de dono nas
@@ -161,6 +165,51 @@ Page.
 
 ---
 
+## Ligar o app web
+
+Três coisas, e só uma delas é fácil de esquecer.
+
+**1. Variáveis na Vercel.** O `.env.example` marca com `[V]` e `[AV]` o que o
+app web consome. As que o login não perdoa se faltarem:
+
+```
+DATABASE_URL          GITHUB_APP_ID          GITHUB_APP_PRIVATE_KEY
+APP_BASE_URL          GITHUB_APP_SLUG        TOKEN_ENCRYPTION_KEY
+ALLOWED_GITHUB_LOGINS GITHUB_APP_CLIENT_ID   TELEGRAM_BOT_TOKEN
+PANEL_TOKEN_SECRET    GITHUB_APP_CLIENT_SECRET  TELEGRAM_WEBHOOK_SECRET
+```
+
+Faltando qualquer uma, o boot falha listando **todas** as ausentes de uma vez,
+não uma por deploy.
+
+**2. `ALLOWED_GITHUB_LOGINS`.** É a allowlist de quem pode entrar. Login com
+GitHub sem ela deixaria qualquer pessoa do mundo criar conta e passar a
+consumir a chave da Anthropic. Ela não tem valor padrão: esquecê-la quebra no
+boot, o que é melhor do que trancar todo mundo para fora em silêncio.
+
+Quando entrar um dev novo, é **a única coisa** que o operador precisa fazer —
+acrescentar o login do GitHub dele nesta lista.
+
+**3. Registrar o webhook do Telegram.** O bot não sabe sozinho para onde
+mandar as mensagens:
+
+```bash
+curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://commitpost.vercel.app/api/telegram/webhook",
+    "secret_token": "<TELEGRAM_WEBHOOK_SECRET>"
+  }'
+```
+
+O `secret_token` volta em todo update no header
+`X-Telegram-Bot-Api-Secret-Token`, e o webhook recusa quem não o traz. Sem
+isso, qualquer um que descubra a URL consegue enviar updates forjados.
+
+Repare no que **não** está aqui: nenhum `chat_id`. Com vários devs a lista de
+quem pode aprovar vive no banco e cresce sozinha, à medida que cada um abre o
+link do bot na tela de introdução.
+
 ---
 
 ## Depois disso, nada mais é manual
@@ -171,11 +220,18 @@ com o GitHub e segue a tela de introdução:
 
 | Passo na tela | O que acontece por baixo |
 |---|---|
-| Conectar o GitHub | é o próprio login; o callback já traz o `installation_id` |
-| Receber no Telegram | link `t.me/commitpost_bot?start=<código>` amarra o `chat_id` |
+| Conectar o GitHub | é o próprio login; ao voltar, o sistema pergunta ao GitHub quais instalações aquele dev enxerga |
 | Confirmar e-mails | lidos da API do GitHub, o dev só marca e completa |
 | Proteger o que não pode vazar | o sistema **propõe** a lista a partir dos nomes reais dos repositórios e da organização; o dev confirma e acrescenta |
+| Receber no Telegram | link `t.me/commitpost_bot?start=<código>` amarra o `chat_id` |
+| Incluir colaborações | OAuth clássico, opcional — só para repos de outras pessoas |
 | Publicar no LinkedIn | OAuth, opcional — sem ele o dev copia o post aprovado do Telegram |
+
+O botão *"Já instalei, atualizar"* é o mesmo login: o sistema não guarda token
+de usuário do GitHub, então descobrir uma instalação nova é uma ida e volta
+pelo GitHub, que para quem está na tela é um piscar. É também por isso que
+configurar *Setup URL* no App é opcional — sem ela nada quebra, o dev só
+precisa clicar em voltar.
 
 Os dois passos em que o sistema propõe não são só conveniência. Pedir que
 alguém *lembre* de todos os nomes de cliente é a parte mais frágil de todo o

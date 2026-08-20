@@ -6,7 +6,7 @@ import {
   encryptSecret,
   generateEncryptionKey,
   secretsMatch,
-} from "./crypto.js";
+} from "./crypto";
 
 const KEY = "a".repeat(64);
 const OUTRA_KEY = "b".repeat(64);

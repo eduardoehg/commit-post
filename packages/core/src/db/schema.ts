@@ -61,7 +61,15 @@ export const users = pgTable(
     displayName: text("display_name"),
     avatarUrl: text("avatar_url"),
 
-    /** Preenchido quando o dev manda /start no bot. Null = não recebe nada. */
+    /**
+     * Preenchido quando o dev abre o link `t.me/<bot>?start=<código>`.
+     * Null = não recebe nada.
+     *
+     * Único: uma conta do Telegram é de uma pessoa só, e um chat apontando
+     * para dois devs mandaria os posts de um para o outro aprovar. Nulo
+     * repetido é permitido pelo Postgres, que é o que queremos enquanto
+     * ninguém vinculou.
+     */
     telegramChatId: text("telegram_chat_id"),
 
     /**
@@ -79,6 +87,7 @@ export const users = pgTable(
   (t) => [
     uniqueIndex("users_github_user_id_idx").on(t.githubUserId),
     uniqueIndex("users_github_login_idx").on(t.githubLogin),
+    uniqueIndex("users_telegram_chat_idx").on(t.telegramChatId),
   ],
 );
 
@@ -233,6 +242,13 @@ export const oauthTokens = pgTable(
  * Note que não há token aqui: tokens de instalação são gerados na hora a
  * partir da chave privada do app e expiram em uma hora. O sistema nunca
  * armazena credencial de acesso ao código de ninguém.
+ *
+ * A unicidade é por (user_id, installation_id), não por installation_id: dois
+ * devs da mesma organização enxergam a MESMA instalação, e cada um precisa da
+ * própria linha. Fosse única só pelo id da instalação, o segundo login
+ * roubaria a instalação do primeiro e ele pararia de coletar sem aviso. Os
+ * commits são separados por e-mail de autor, então compartilhar a instalação
+ * não mistura o trabalho de ninguém.
  */
 export const githubInstallations = pgTable(
   "github_installations",
@@ -251,7 +267,8 @@ export const githubInstallations = pgTable(
     updatedAt,
   },
   (t) => [
-    uniqueIndex("github_installations_installation_idx").on(t.installationId),
+    uniqueIndex("github_installations_user_installation_idx").on(t.userId, t.installationId),
+    index("github_installations_installation_idx").on(t.installationId),
     index("github_installations_user_idx").on(t.userId),
   ],
 );

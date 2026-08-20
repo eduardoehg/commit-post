@@ -6,6 +6,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./env": "./src/env.ts",
+    "./crypto": "./src/crypto.ts",
+    "./auth": "./src/auth/index.ts",
+    "./onboarding": "./src/onboarding.ts",
     "./db": "./src/db/index.ts",
     "./github": "./src/github/index.ts",
     "./llm": "./src/llm/index.ts",

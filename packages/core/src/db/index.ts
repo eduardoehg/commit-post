@@ -15,5 +15,5 @@
  * importa no runner do Actions e em qualquer runtime serverless.
  */
 
-export * from "./schema.js";
-export { createDatabase, closeDatabase, type Database } from "./client.js";
+export * from "./schema";
+export { createDatabase, closeDatabase, type Database } from "./client";

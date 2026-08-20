@@ -17,7 +17,7 @@
  *      corrente.
  */
 
-import { escapeForRegExp } from "./vocabulary.js";
+import { escapeForRegExp } from "./vocabulary";
 
 /**
  * `input`  — mensagem de commit; pode ser destruída à vontade, só serve de

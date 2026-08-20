@@ -46,6 +46,34 @@ const encryptionKey = z
   .string()
   .regex(/^[0-9a-fA-F]{64}$/, 'precisa ser 32 bytes em hex (64 caracteres)');
 
+/**
+ * Chave privada do GitHub App, sempre devolvida como PEM.
+ *
+ * Aceita três formas porque as três acontecem de verdade: o .pem colado
+ * inteiro, o mesmo .pem em base64 (única forma que sobrevive a uma variável de
+ * ambiente de uma linha só), e o .pem com `\n` literal, que é como um painel
+ * de deploy costuma devolver o que foi colado com quebras.
+ */
+const pemPrivateKey = z
+  .string()
+  .min(1)
+  .transform((raw) => {
+    const unescaped = raw.includes("-----BEGIN") ? raw.replace(/\\n/g, "\n") : raw;
+    if (unescaped.includes("-----BEGIN")) return unescaped;
+
+    try {
+      const decoded = Buffer.from(unescaped, "base64").toString("utf8");
+      if (decoded.includes("-----BEGIN")) return decoded;
+    } catch {
+      // Cai no refine abaixo com a mensagem que explica o que se esperava.
+    }
+    return unescaped;
+  })
+  .refine(
+    (pem) => pem.includes("-----BEGIN"),
+    "precisa ser o arquivo .pem que o GitHub gerou, inteiro, ou o mesmo .pem em base64",
+  );
+
 const httpUrl = z
   .string()
   .url("precisa ser uma URL completa (com http:// ou https://)");
@@ -80,7 +108,45 @@ const pipelineSchema = z.object({
 const webSchema = z.object({
   DATABASE_URL: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
-  TELEGRAM_CHAT_ID: z.string().min(1),
+  /**
+   * Chat do operador, para avisos de sistema.
+   *
+   * Opcional aqui, e isso é uma mudança em relação à Fase 0: com vários devs,
+   * quem pode aprovar um post não é mais "o chat que está nesta variável", e
+   * sim qualquer chat vinculado a um usuário ativo em `users.telegram_chat_id`.
+   * A allowlist mora no banco porque é ela que cresce a cada dev novo.
+   */
+  TELEGRAM_CHAT_ID: z.string().min(1).optional(),
+
+  TOKEN_ENCRYPTION_KEY: encryptionKey,
+
+  /**
+   * GitHub App — o caminho principal. Serve de login e dá acesso de leitura
+   * aos repositórios das contas onde o dev instalar.
+   *
+   * Não existe token de dev aqui: os de instalação são gerados na hora a
+   * partir da chave privada e expiram em uma hora.
+   */
+  GITHUB_APP_ID: z.string().regex(/^\d+$/, "é o App ID numérico, não o Client ID"),
+  GITHUB_APP_SLUG: z.string().min(1),
+  GITHUB_APP_CLIENT_ID: z.string().min(1),
+  GITHUB_APP_CLIENT_SECRET: z.string().min(1),
+  GITHUB_APP_PRIVATE_KEY: pemPrivateKey,
+
+  /**
+   * OAuth App clássico, separado do GitHub App.
+   *
+   * Existe só para alcançar repositórios onde o dev é apenas colaborador:
+   * a instalação de um GitHub App só enxerga repos da conta onde foi
+   * instalada, e o token de usuário dele continua preso às instalações.
+   *
+   * Opcional porque a concessão é opcional — quem não tem colaborações
+   * fora das próprias contas não precisa conceder escopo `repo`. Faltando,
+   * o passo aparece desabilitado na tela de introdução em vez de sumir.
+   */
+  GITHUB_OAUTH_CLIENT_ID: z.string().min(1).optional(),
+  GITHUB_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
+
   /**
    * Logins do GitHub autorizados a entrar, separados por vírgula.
    *
@@ -91,21 +157,6 @@ const webSchema = z.object({
    * boot, em vez de trancar todo mundo para fora com uma mensagem confusa.
    * Uma lista deliberadamente vazia é válida — basta declarar vazia.
    */
-  TOKEN_ENCRYPTION_KEY: encryptionKey,
-
-  /**
-   * OAuth App clássico, separado do GitHub App.
-   *
-   * Existe só para alcançar repositórios onde o dev é apenas colaborador:
-   * a instalação de um GitHub App só enxerga repos da conta onde foi
-   * instalada, e o token de usuário dele continua preso às instalações.
-   *
-   * Opcional porque a concessão é opcional — quem não tem colaborações
-   * fora das próprias contas não precisa conceder escopo `repo`.
-   */
-  GITHUB_OAUTH_CLIENT_ID: z.string().min(1).optional(),
-  GITHUB_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
-
   ALLOWED_GITHUB_LOGINS: termList,
 
   TELEGRAM_WEBHOOK_SECRET: secret,

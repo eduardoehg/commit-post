@@ -5,7 +5,7 @@ import {
   scrubGeneratedText,
   type RawCommit,
   type TechnicalFact,
-} from "./index.js";
+} from "./index";
 
 /**
  * Contrato do filtro de confidencialidade.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EnvValidationError, loadPipelineEnv, loadWebEnv } from "./env.js";
+import { EnvValidationError, loadPipelineEnv, loadWebEnv } from "./env";
 
 const SECRET = "a".repeat(64);
 const HEX_KEY = "0123456789abcdef".repeat(4);
@@ -16,14 +16,21 @@ const validPipeline = {
   APP_BASE_URL: "https://commit-post.vercel.app",
 };
 
+/** Não é uma chave de verdade; o validador só exige que o PEM se anuncie. */
+const PEM = "-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----\n";
+
 const validWeb = {
   DATABASE_URL: "postgresql://u:p@host/db",
   TELEGRAM_BOT_TOKEN: "123:ABC",
-  TELEGRAM_CHAT_ID: "999",
   TELEGRAM_WEBHOOK_SECRET: SECRET,
   PANEL_TOKEN_SECRET: SECRET,
   ALLOWED_GITHUB_LOGINS: "eduardoehg,outrodev",
   TOKEN_ENCRYPTION_KEY: HEX_KEY,
+  GITHUB_APP_ID: "4662011",
+  GITHUB_APP_SLUG: "commit-post",
+  GITHUB_APP_CLIENT_ID: "Iv23li000000000",
+  GITHUB_APP_CLIENT_SECRET: "segredo-do-app",
+  GITHUB_APP_PRIVATE_KEY: PEM,
   APP_BASE_URL: "https://commit-post.vercel.app",
 };
 
@@ -109,9 +116,60 @@ describe("loadWebEnv", () => {
     expect(() => loadWebEnv(semSecret)).toThrow(EnvValidationError);
   });
 
-  it("exige TELEGRAM_CHAT_ID — é o que impede terceiros de aprovarem posts", () => {
-    const { TELEGRAM_CHAT_ID: _omitted, ...semChat } = validWeb;
-    expect(() => loadWebEnv(semChat)).toThrow(EnvValidationError);
+  it("não exige TELEGRAM_CHAT_ID — com vários devs a allowlist mora no banco", () => {
+    // Mudança da Fase 1.5. Quem pode aprovar um post não é mais "o chat desta
+    // variável", e sim qualquer chat vinculado a um usuário ativo. A variável
+    // sobreviveu só como destino de aviso do operador.
+    expect(() => loadWebEnv(validWeb)).not.toThrow();
+    expect(loadWebEnv(validWeb).TELEGRAM_CHAT_ID).toBeUndefined();
+  });
+
+  it("exige as credenciais do GitHub App — sem elas não há como entrar", () => {
+    for (const chave of [
+      "GITHUB_APP_ID",
+      "GITHUB_APP_SLUG",
+      "GITHUB_APP_CLIENT_ID",
+      "GITHUB_APP_CLIENT_SECRET",
+      "GITHUB_APP_PRIVATE_KEY",
+    ] as const) {
+      const { [chave]: _omitida, ...incompleto } = validWeb;
+      expect(() => loadWebEnv(incompleto), `faltando ${chave}`).toThrow(EnvValidationError);
+    }
+  });
+
+  it("recusa o Client ID no lugar do App ID", () => {
+    // Os dois ficam lado a lado na mesma tela do GitHub e são trocados o
+    // tempo todo. O App ID é numérico; o Client ID começa com "Iv".
+    expect(() => loadWebEnv({ ...validWeb, GITHUB_APP_ID: "Iv23li000000000" })).toThrow(
+      EnvValidationError,
+    );
+  });
+
+  it("aceita a chave privada em base64, que é como ela cabe numa variável", () => {
+    const emBase64 = Buffer.from(PEM).toString("base64");
+    expect(loadWebEnv({ ...validWeb, GITHUB_APP_PRIVATE_KEY: emBase64 }).GITHUB_APP_PRIVATE_KEY)
+      .toContain("-----BEGIN");
+  });
+
+  it("desfaz o \\n literal que painéis de deploy deixam no PEM", () => {
+    const comEscape = PEM.replace(/\n/g, String.raw`\n`);
+    expect(
+      loadWebEnv({ ...validWeb, GITHUB_APP_PRIVATE_KEY: comEscape }).GITHUB_APP_PRIVATE_KEY,
+    ).toBe(PEM);
+  });
+
+  it("recusa uma chave que não é PEM nem base64 de PEM", () => {
+    expect(() => loadWebEnv({ ...validWeb, GITHUB_APP_PRIVATE_KEY: "cole aqui" })).toThrow(
+      EnvValidationError,
+    );
+  });
+
+  it("mantém o OAuth de colaborações opcional", () => {
+    expect(loadWebEnv(validWeb).GITHUB_OAUTH_CLIENT_ID).toBeUndefined();
+    expect(
+      loadWebEnv({ ...validWeb, GITHUB_OAUTH_CLIENT_ID: "Ov23", GITHUB_OAUTH_CLIENT_SECRET: "s" })
+        .GITHUB_OAUTH_CLIENT_ID,
+    ).toBe("Ov23");
   });
 
   it("divide a allowlist de logins do GitHub em lista", () => {

@@ -25,7 +25,7 @@
  *   3. aprovação humana no Telegram, com procedência visível
  */
 
-import { maskSensitive } from "./sanitize.js";
+import { maskSensitive } from "./sanitize";
 import {
   EXTENSION_TECHNOLOGY,
   findVocabularyHits,
@@ -35,7 +35,7 @@ import {
   PROTECTED_LITERALS,
   rewriteDottedTerms,
   TECHNOLOGIES,
-} from "./vocabulary.js";
+} from "./vocabulary";
 
 /** Categoria da mudança, inferida da mensagem do commit. */
 export type ChangeKind =
@@ -342,5 +342,5 @@ export function scrubGeneratedText(text: string, options: FilterOptions = {}): S
   return { text: scrubbed.replace(/[ \t]{2,}/g, " ").trim(), removed };
 }
 
-export { maskSensitive } from "./sanitize.js";
-export { normalize } from "./vocabulary.js";
+export { maskSensitive } from "./sanitize";
+export { normalize } from "./vocabulary";

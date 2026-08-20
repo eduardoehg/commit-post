@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { closeDatabase, createDatabase, type Database } from "./client.js";
+import { closeDatabase, createDatabase, type Database } from "./client";
 import {
   commits,
   deniedTerms,
@@ -9,7 +9,7 @@ import {
   repos,
   userEmails,
   users,
-} from "./schema.js";
+} from "./schema";
 
 /**
  * Teste de integração contra o banco real.

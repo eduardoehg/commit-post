@@ -26,9 +26,12 @@ GitHub Actions (cron, UTC)
        └─ envia c/ procedência    packages/core/telegram  (Fase 5)
 
 Vercel — apps/web (só o que precisa ser HTTP público)
-  ├─ POST /api/telegram/webhook   valida secret + allowlist de chat_id
+  ├─ /                            login                            (Fase 1.5)
   ├─ /onboarding                  tela de introdução do dev        (Fase 1.5)
-  ├─ GET  /api/auth/github/*      login com GitHub + instalação    (Fase 1.5)
+  ├─ POST /api/telegram/webhook   secret + chat vinculado no banco (Fase 1.5)
+  ├─ GET  /api/auth/github/login      entrar e ressincronizar      (Fase 1.5)
+  ├─ GET  /api/auth/github/install    instalar o App               (Fase 1.5)
+  ├─ GET  /api/auth/github/oauth/*    colaborações, opt-in         (Fase 1.5)
   ├─ GET  /post/[id]              edição do post                   (Fase 6)
   └─ GET  /api/auth/linkedin/callback  OAuth, grava token   (Fase 7)
 ```
@@ -59,7 +62,7 @@ Diferente da spec, as fases não são estritamente sequenciais:
   propósito: é o núcleo do sistema, é testável isoladamente e fazer primeiro
   força o desenho de dados correto na coleta)
 - **Fase 1** — schema multiusuário ✅
-- **Fase 1.5 — login e tela de introdução.** Nova, e antes da coleta. É por
+- **Fase 1.5 — login e tela de introdução** ✅. Nova, e antes da coleta. É por
   onde cada dev conecta GitHub, Telegram, e-mails, denylist e LinkedIn.
   Sem ela não existe usuário cadastrado e nada mais roda.
 - **Fase 2** — coleta, já usando o token de instalação do GitHub App.
@@ -89,6 +92,14 @@ o workflow seguro; `user_emails.email` é único globalmente para o mesmo commit
 não virar post de dois donos; e a coluna do token do LinkedIn se chama
 `access_token_encrypted` porque o nome é a barreira mais barata contra alguém
 gravar em claro a credencial que publica no perfil de outra pessoa.
+
+Duas restrições vieram da Fase 1.5: `github_installations` é única por
+`(user_id, installation_id)`, e não por `installation_id`, porque dois devs da
+mesma organização enxergam a **mesma** instalação e cada um precisa da própria
+linha — fosse única pelo id, o segundo login roubaria a instalação do primeiro
+e ele pararia de coletar sem aviso. E `users.telegram_chat_id` é único, porque
+uma conta do Telegram é de uma pessoa só e um chat apontando para dois devs
+mandaria os posts de um para o outro aprovar.
 
 ```bash
 npm run db:generate --workspace @commitpost/core   # schema.ts -> SQL
@@ -130,6 +141,42 @@ escopo somente-leitura para repositório privado. Daí as três regras:
 
 Quando os repos são de uma **organização**, o caminho limpo é um admin instalar
 o App na org — cobre todos de uma vez e dispensa o OAuth.
+
+## Login, sessão e a tela de introdução
+
+A tela de introdução (`apps/web/app/onboarding`) existe por uma decisão de
+produto: **nada que um dev precise configurar deve morar num arquivo de
+instruções**. Cada passo é derivado do banco e fica verde porque a linha
+existe, não porque alguém marcou uma caixa. `docs/setup-operador.md` cobre só o
+que um aplicativo não pode fazer por si — criar as contas de plataforma antes
+de existir.
+
+Quatro decisões que sustentam isso:
+
+**Nenhum token de usuário do GitHub é guardado.** O do login vive dentro da
+requisição do callback e some. Descobrir uma instalação nova é, por isso, uma
+ida e volta pelo login — que é o que o botão "Já instalei, atualizar" faz. O
+preço é um redirecionamento a mais; o troco é não guardar credencial de acesso
+ao código de ninguém, nem depender de *Setup URL* configurada no App.
+
+**A sessão é uma linha no banco, e o cookie guarda só o segredo.** A tabela
+guarda o SHA-256. Assim dá para revogar o acesso de uma pessoa apagando a
+linha, sem trocar o segredo de todo mundo — e um dump de `sessions` não permite
+se passar por ninguém. `active = false` derruba as sessões abertas na
+requisição seguinte, sem caçá-las.
+
+**O `state` do OAuth é assinado E amarrado a um cookie.** As duas coisas
+respondem a perguntas diferentes: a assinatura prova que o `state` saiu daqui,
+o cookie prova que saiu **deste navegador**. Só a primeira não bastaria —
+qualquer um pode abrir nossa rota de login, receber um `state` válido e montar
+um callback com o `code` da própria conta.
+
+**A allowlist do Telegram saiu do ambiente e foi para o banco.** Era
+`TELEGRAM_CHAT_ID`, um chat só; agora é qualquer chat em
+`users.telegram_chat_id` de usuário ativo, porque é essa lista que cresce a
+cada dev. A variável sobreviveu como destino de aviso do operador. A única
+mensagem aceita de chat desconhecido é `/start <código>` — tem que ser, é assim
+que o vínculo nasce, e o que autoriza ali é o código de uso único de 15 minutos.
 
 ## Cifra de segredos
 
@@ -197,6 +244,10 @@ npm run dev          # sobe o Next em apps/web
 ## Convenções
 
 - Comentários e mensagens de commit em português.
+- **Import relativo sem extensão** (`./crypto`, não `./crypto.js`). O Turbopack
+  não mapeia `.js` para `.ts` dentro de `transpilePackages`, e como
+  `packages/core` é consumido como TypeScript direto — sem passo de build — a
+  extensão `.js` só serviria a um arquivo que nunca existe.
 - Nada de segredo em código; env é validada no boot por `packages/core/env.ts`,
   que falha listando **todas** as variáveis faltantes de uma vez.
 - Toda mudança em `packages/core/redact` exige teste. É a parte mais crítica
