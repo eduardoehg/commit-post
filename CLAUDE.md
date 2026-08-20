@@ -53,14 +53,41 @@ alterados deliberadamente:
 Diferente da spec, as fases não são estritamente sequenciais:
 
 - **Fase 0** — setup ✅
-- **Fase 3** (filtro) **antes da Fase 2**. É o núcleo do sistema e é testável
-  isoladamente com fixtures, sem tocar no GitHub. Fazer primeiro força o
-  desenho de dados correto na coleta.
+- **Fase 3** — filtro de confidencialidade ✅ (feita antes da Fase 2 de
+  propósito: é o núcleo do sistema, é testável isoladamente e fazer primeiro
+  força o desenho de dados correto na coleta)
 - **Fases 1, 2, 4, 5** — banco, coleta, geração, Telegram.
 - **MVP para aqui**, com publicação manual (copiar do Telegram). Valida a
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
 - **Fase 6** (painel) deixa de ser opcional se o botão "✏️ Editar" existir.
 - **Fase 7** (LinkedIn) quando o app estiver aprovado.
+
+## O filtro de confidencialidade
+
+`packages/core/src/redact/` é a parte mais crítica do sistema. A decisão de
+desenho que sustenta tudo:
+
+**Todo campo do `TechnicalFact` vem de um vocabulário fechado.** `changeKind`
+é um enum; `technologies`, `problemClass` e `outcome` só podem conter rótulos
+declarados em `vocabulary.ts`. Nenhum pedaço de texto do commit é copiado para
+a saída — nem sanitizado, nem truncado. O commit só serve para DECIDIR quais
+rótulos se aplicam.
+
+Isso troca uma garantia frágil por uma estrutural: não é que os nomes de
+cliente sejam filtrados, é que eles não têm por onde sair. A higienização em
+`sanitize.ts` continua existindo, mas como defesa em profundidade — o papel
+dela é impedir que um termo do vocabulário seja colhido de dentro de um trecho
+sensível (`redis.cliente-x.internal` não deve render a tecnologia "Redis").
+
+**Ao editar `vocabulary.ts`:** adicionar um termo é decisão de segurança, não
+de conveniência. Só entram termos públicos e genéricos.
+
+**Ao editar os testes:** validá-los por mutação, não por cobertura. Um teste
+que afirma sobre a saída de `extractTechnicalFacts` frequentemente não testa
+nada — o vocabulário fechado já bloquearia o vazamento sozinho, então o teste
+passa com a lógica quebrada. Foi assim que três testes inúteis foram
+descobertos e reescritos. Quebre a função de propósito e confirme que algum
+teste fica vermelho.
 
 ## Stack
 

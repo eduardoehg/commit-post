@@ -33,6 +33,14 @@ const positiveInt = z
   .transform(Number)
   .refine((n) => n > 0, "precisa ser maior que zero");
 
+/**
+ * Lista separada por vírgula. Diferente de `emailList`, aceita vazia — nem
+ * todo mundo tem nomes de cliente a esconder.
+ */
+const termList = z
+  .string()
+  .transform((raw) => raw.split(",").map((s) => s.trim()).filter(Boolean));
+
 const httpUrl = z
   .string()
   .url("precisa ser uma URL completa (com http:// ou https://)");
@@ -47,6 +55,15 @@ const pipelineSchema = z.object({
   GITHUB_TOKEN: z.string().min(1),
   GITHUB_AUTHOR_EMAILS: emailList,
   GITHUB_LOOKBACK_DAYS: positiveInt.default("7"),
+  /**
+   * Nomes de empresas, clientes, produtos internos e os NOMES REAIS dos
+   * repositórios — alimenta a denylist do filtro de confidencialidade.
+   *
+   * Esta lista é ela própria confidencial: ela nomeia exatamente o que não
+   * pode vazar. Vive em GitHub Secrets e .env.local, nunca no repositório.
+   */
+  REDACT_DENIED_TERMS: termList.default(""),
+
   ANTHROPIC_API_KEY: z.string().min(1),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_CHAT_ID: z.string().min(1),

@@ -46,6 +46,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.COMMITPOST_GITHUB_TOKEN }}
           GITHUB_AUTHOR_EMAILS: ${{ secrets.COMMITPOST_AUTHOR_EMAILS }}
           GITHUB_LOOKBACK_DAYS: ${{ vars.COMMITPOST_LOOKBACK_DAYS || '7' }}
+          REDACT_DENIED_TERMS: ${{ secrets.COMMITPOST_DENIED_TERMS }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

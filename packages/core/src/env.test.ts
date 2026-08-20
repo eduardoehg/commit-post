@@ -56,6 +56,18 @@ describe("loadPipelineEnv", () => {
     }
   });
 
+  it("aceita denylist vazia — nem todo mundo tem nome de cliente a esconder", () => {
+    expect(loadPipelineEnv(validPipeline).REDACT_DENIED_TERMS).toEqual([]);
+  });
+
+  it("divide REDACT_DENIED_TERMS em lista, sem espaços sobrando", () => {
+    const env = loadPipelineEnv({
+      ...validPipeline,
+      REDACT_DENIED_TERMS: "Portal Meridiano, acme-billing , Zarvox",
+    });
+    expect(env.REDACT_DENIED_TERMS).toEqual(["Portal Meridiano", "acme-billing", "Zarvox"]);
+  });
+
   it("rejeita segredo curto demais para assinar links", () => {
     expect(() =>
       loadPipelineEnv({ ...validPipeline, PANEL_TOKEN_SECRET: "curto" }),
