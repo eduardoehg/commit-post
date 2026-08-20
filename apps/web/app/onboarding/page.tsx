@@ -35,6 +35,16 @@ import {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Vira `true` na Fase 7, junto com a rota `/api/auth/linkedin/authorize`.
+ *
+ * Ter as credenciais do LinkedIn no ambiente não basta: sem o fluxo de
+ * autorização, o botão levava a um 404. Um passo que parece disponível e não
+ * está é pior do que um passo cinza — o dev clica, não entende, e passa a
+ * desconfiar do resto da tela.
+ */
+const PUBLICACAO_LINKEDIN_PRONTA = false;
+
 const CORES = {
   feito: "#137333",
   pendente: "#8a6d00",
@@ -91,7 +101,8 @@ export default async function OnboardingPage({
     hasCollaborationGrant: providers.has(GITHUB_COLLAB_PROVIDER),
     hasLinkedIn: providers.has(LINKEDIN_PROVIDER),
     collaborationsAvailable: configuration.GITHUB_OAUTH_CLIENT_ID !== undefined,
-    linkedInAvailable: configuration.LINKEDIN_CLIENT_ID !== undefined,
+    linkedInAvailable:
+      PUBLICACAO_LINKEDIN_PRONTA && configuration.LINKEDIN_CLIENT_ID !== undefined,
   });
 
   // Só emite código de vínculo se o passo estiver aberto — não faz sentido
