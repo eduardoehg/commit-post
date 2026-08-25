@@ -44,14 +44,16 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * Vira `true` na Fase 7, junto com a rota `/api/auth/linkedin/authorize`.
+ * A rota `/api/auth/linkedin/authorize` existe desde a Fase 7, e os produtos
+ * Share on LinkedIn e Sign In with LinkedIn foram liberados no portal — então
+ * o passo volta a aparecer.
  *
- * Ter as credenciais do LinkedIn no ambiente não basta: sem o fluxo de
- * autorização, o botão levava a um 404. Um passo que parece disponível e não
- * está é pior do que um passo cinza — o dev clica, não entende, e passa a
- * desconfiar do resto da tela.
+ * A constante fica de pé: ter as credenciais no ambiente não basta, e foi
+ * exatamente isso que fez o botão levar a um 404 antes. Um passo que parece
+ * disponível e não está é pior do que um passo cinza — o dev clica, não
+ * entende, e passa a desconfiar do resto da tela.
  */
-const PUBLICACAO_LINKEDIN_PRONTA = false;
+const CONEXAO_LINKEDIN_PRONTA = true;
 
 const CORES = {
   feito: "#137333",
@@ -111,7 +113,7 @@ export default async function OnboardingPage({
     hasLinkedIn: providers.has(LINKEDIN_PROVIDER),
     collaborationsAvailable: configuration.GITHUB_OAUTH_CLIENT_ID !== undefined,
     linkedInAvailable:
-      PUBLICACAO_LINKEDIN_PRONTA && configuration.LINKEDIN_CLIENT_ID !== undefined,
+      CONEXAO_LINKEDIN_PRONTA && configuration.LINKEDIN_CLIENT_ID !== undefined,
   });
 
   // Só emite código de vínculo se o passo estiver aberto — não faz sentido
@@ -177,7 +179,9 @@ export default async function OnboardingPage({
                 botConfigurado={bot !== null || user.telegramChatId !== null}
               />
             )}
-            {step.id === "linkedin" && <LinkedIn disponivel={step.available} />}
+            {step.id === "linkedin" && (
+              <LinkedIn conectado={step.done} disponivel={step.available} />
+            )}
           </Passo>
         ))}
       </ol>
@@ -506,7 +510,7 @@ function Telegram({
   );
 }
 
-function LinkedIn({ disponivel }: { disponivel: boolean }) {
+function LinkedIn({ conectado, disponivel }: { conectado: boolean; disponivel: boolean }) {
   if (!disponivel) {
     return (
       <p style={{ color: CORES.indisponivel, margin: 0 }}>
@@ -517,9 +521,25 @@ function LinkedIn({ disponivel }: { disponivel: boolean }) {
   }
 
   return (
-    <a href="/api/auth/linkedin/authorize" style={botaoPrincipal}>
-      Conectar o LinkedIn
-    </a>
+    <>
+      <a href="/api/auth/linkedin/authorize" style={conectado ? botaoDiscreto : botaoPrincipal}>
+        {conectado ? "Reconectar" : "Conectar o LinkedIn"}
+      </a>
+
+      <p style={nota}>
+        O acesso do LinkedIn dura cerca de 60 dias e não se renova sozinho — o bot
+        avisa antes de vencer, e reconectar é este mesmo botão. Você pode revogar
+        quando quiser em{" "}
+        <a
+          href="https://www.linkedin.com/mypreferences/d/permitted-services"
+          target="_blank"
+          rel="noreferrer"
+        >
+          serviços autorizados
+        </a>
+        .
+      </p>
+    </>
   );
 }
 

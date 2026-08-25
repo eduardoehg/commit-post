@@ -22,7 +22,7 @@ import { env } from "./runtime";
 /** O mesmo prazo do `state`, para os dois vencerem juntos. */
 const OAUTH_COOKIE_MAX_AGE = 600;
 
-export type OAuthKind = "app" | "collab";
+export type OAuthKind = "app" | "collab" | "linkedin";
 
 function fingerprint(nonce: string): string {
   return createHash("sha256").update(nonce).digest("base64url");
