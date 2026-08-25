@@ -1,0 +1,52 @@
+/*
+ * Qual ícone aparece é decisão do CSS, não do React.
+ *
+ * Motivo: o servidor não sabe o `prefers-color-scheme` de quem pediu a página.
+ * Se o componente decidisse, o botão nasceria com o ícone errado para quem usa
+ * o sistema no escuro e só se corrigiria depois da hidratação — visível, e
+ * exatamente o tipo de detalhe que faz a interface parecer mal acabada.
+ *
+ * A regra é a mesma dos tokens, com os três estados. O ícone mostrado é o do
+ * tema ATUAL: lua no escuro, sol no claro.
+ */
+
+.botao {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--borda);
+  border-radius: var(--r1);
+  background: var(--superficie);
+  color: var(--texto-suave);
+  transition: color var(--transicao), border-color var(--transicao);
+}
+
+.botao:hover {
+  color: var(--texto);
+  border-color: var(--borda-forte);
+}
+
+/* Padrão claro: mostra o sol. */
+.lua {
+  display: none;
+}
+.sol {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) .sol {
+    display: none;
+  }
+  :root:not([data-tema="claro"]) .lua {
+    display: block;
+  }
+}
+
+:root[data-tema="escuro"] .sol {
+  display: none;
+}
+:root[data-tema="escuro"] .lua {
+  display: block;
+}

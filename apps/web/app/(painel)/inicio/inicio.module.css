@@ -1,0 +1,74 @@
+.filtros {
+  display: flex;
+  gap: var(--e2);
+  flex-wrap: wrap;
+  margin-bottom: var(--e5);
+}
+
+/*
+ * O filtro ativo é marcado por `aria-current`, como a navegação lateral: uma
+ * informação, uma fonte. Uma classe separada podia dessincronizar do atributo
+ * e só quem usa leitor de tela notaria.
+ */
+.filtros a[aria-current="page"] {
+  border-color: var(--acao);
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+}
+
+.post {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--r2);
+  padding: var(--e5);
+  box-shadow: var(--sombra);
+}
+
+/* Recusado e encerrado continuam legíveis, mas param de disputar atenção. */
+.post[data-estado="rejected"],
+.post[data-estado="superseded"] {
+  background: var(--superficie-2);
+  box-shadow: none;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  margin-bottom: var(--e3);
+}
+
+.data {
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * `pre-wrap` porque o post tem parágrafos e quebras que o autor escolheu — e
+ * são elas que fazem o texto funcionar no feed. Colapsar aqui mostraria uma
+ * coisa e copiaria outra.
+ */
+.corpo {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--t-sm);
+  color: var(--texto);
+  margin-bottom: var(--e4);
+}
+
+.acoes {
+  display: flex;
+  gap: var(--e2);
+  flex-wrap: wrap;
+}

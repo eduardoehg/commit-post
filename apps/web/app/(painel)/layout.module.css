@@ -1,0 +1,167 @@
+.casca {
+  display: grid;
+  grid-template-columns: var(--lateral) 1fr;
+  min-height: 100dvh;
+}
+
+.lateral {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e5);
+  padding: var(--e5) 0;
+  background: var(--superficie);
+  border-right: 1px solid var(--borda);
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: 0 var(--e5);
+  color: var(--texto);
+  font-weight: 600;
+  font-size: var(--t-base);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+.rodape {
+  margin-top: auto;
+  padding: var(--e4) var(--e5) 0;
+  border-top: 1px solid var(--borda);
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+}
+
+.usuario {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+  min-width: 0;
+}
+
+.nome {
+  font-size: var(--t-sm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.papel {
+  flex: none;
+  font-size: var(--t-xs);
+  color: var(--texto-fraco);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-pilula);
+  padding: 0 var(--e2);
+}
+
+.acoesRodape {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+.sair {
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--r1);
+  background: none;
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  transition: color var(--transicao), border-color var(--transicao);
+}
+
+.sair:hover {
+  color: var(--texto);
+  border-color: var(--borda-forte);
+}
+
+.corpo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.conteudo {
+  width: 100%;
+  max-width: var(--conteudo-max);
+  margin: 0 auto;
+  padding: var(--e10) var(--e6) var(--e12);
+}
+
+/* --- Faixa de pendência ------------------------------------------------ */
+
+.faixa {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e4);
+  flex-wrap: wrap;
+  padding: var(--e3) var(--e6);
+  background: var(--aviso-fundo);
+  border-bottom: 1px solid color-mix(in srgb, var(--aviso) 30%, transparent);
+  color: var(--aviso);
+  font-size: var(--t-sm);
+}
+
+.faixaLink {
+  color: inherit;
+  font-weight: 600;
+  text-decoration-color: currentColor;
+}
+
+/* --- Telas estreitas ---------------------------------------------------
+ *
+ * A lateral vira uma barra no topo, com os ícones em linha. Não é um menu
+ * escondido atrás de um botão de propósito: são seis itens, cabem, e menu
+ * escondido é um clique a mais para chegar a qualquer lugar.
+ */
+@media (max-width: 52rem) {
+  .casca {
+    grid-template-columns: 1fr;
+  }
+
+  .lateral {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--e4);
+    padding: var(--e3) var(--e4);
+    border-right: none;
+    border-bottom: 1px solid var(--borda);
+    overflow-x: auto;
+  }
+
+  .marca {
+    padding: 0;
+  }
+
+  .marca span {
+    display: none;
+  }
+
+  .rodape {
+    margin-top: 0;
+    margin-left: auto;
+    padding: 0;
+    border-top: none;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--e3);
+  }
+
+  .usuario {
+    display: none;
+  }
+
+  .conteudo {
+    padding: var(--e6) var(--e4) var(--e10);
+  }
+}

@@ -72,6 +72,17 @@ export const users = pgTable(
      */
     telegramChatId: text("telegram_chat_id"),
 
+    /**
+     * `owner` libera o acesso de outros devs; `dev` não.
+     *
+     * Existe porque a lista de quem pode entrar saiu da variável de ambiente e
+     * veio para o banco: alguém precisa ser dono dela. O primeiro dev a entrar
+     * vira dono, e é a única forma de virar — não há tela que promova ninguém,
+     * porque uma promoção de si mesmo seria a única coisa que um convidado
+     * precisaria descobrir para tomar o sistema.
+     */
+    role: text().notNull().default("dev"),
+
     active: boolean().notNull().default(true),
     createdAt,
     updatedAt,
@@ -81,6 +92,31 @@ export const users = pgTable(
     uniqueIndex("users_github_login_idx").on(t.githubLogin),
     uniqueIndex("users_telegram_chat_idx").on(t.telegramChatId),
   ],
+);
+
+/**
+ * Quem pode entrar.
+ *
+ * Guarda o LOGIN do GitHub, e não o id numérico, porque é o login que o dono
+ * conhece na hora de convidar — ninguém sabe de cabeça o id de outra pessoa. O
+ * preço é conhecido: se alguém trocar o login no GitHub, o convite deixa de
+ * valer. É o preço certo, porque o contrário — convidar por id — tornaria a
+ * tela inutilizável.
+ *
+ * Existe separada de `users` porque um convite acontece ANTES de a pessoa
+ * existir: `users` exige o id numérico do GitHub, que só aparece no primeiro
+ * login.
+ */
+export const allowedLogins = pgTable(
+  "allowed_logins",
+  {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    /** Sempre gravado em minúsculas — o GitHub não diferencia caixa. */
+    login: text().notNull(),
+    invitedBy: integer("invited_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt,
+  },
+  (t) => [uniqueIndex("allowed_logins_login_idx").on(t.login)],
 );
 
 /**

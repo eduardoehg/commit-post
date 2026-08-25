@@ -25,15 +25,23 @@ GitHub Actions (cron, UTC)
        ├─ grava o lote            packages/core/db        (Fase 1)
        └─ envia c/ procedência    packages/core/telegram  (Fase 5)
 
-Vercel — apps/web (só o que precisa ser HTTP público)
-  ├─ /                            login                            (Fase 1.5)
-  ├─ /onboarding                  tela de introdução do dev        (Fase 1.5)
-  ├─ POST /api/telegram/webhook   secret + chat vinculado no banco (Fase 1.5)
-  ├─ GET  /api/auth/github/login      entrar e ressincronizar      (Fase 1.5)
-  ├─ GET  /api/auth/github/install    instalar o App               (Fase 1.5)
-  ├─ GET  /api/auth/github/oauth/*    colaborações, opt-in         (Fase 1.5)
-  ├─ GET  /post/[id]              edição do post                   (Fase 6)
-  └─ GET  /api/auth/linkedin/callback  OAuth, grava token   (Fase 7)
+Vercel — apps/web
+  ├─ /                    entrar com o GitHub
+  └─ (painel)             casca com barra lateral, exige sessão
+       ├─ /inicio         histórico — a tela inicial de quem já configurou
+       ├─ /onboarding     introdução; some da navegação quando termina
+       ├─ /conexoes       GitHub, colaborações, Telegram, LinkedIn
+       ├─ /repositorios   o que É LIDO
+       ├─ /palavras       o que jamais é ESCRITO
+       ├─ /devs           liberar acesso — só o dono
+       └─ /post/[id]      editar e decidir              (Fase 6)
+
+  API (sem casca, redirecionam)
+       ├─ POST /api/telegram/webhook       secret + chat no banco
+       ├─ GET  /api/auth/github/login      entrar e ressincronizar
+       ├─ GET  /api/auth/github/install    instalar o App
+       ├─ GET  /api/auth/github/oauth/*    colaborações, opt-in
+       └─ GET  /api/auth/linkedin/*        conectar e gravar token
 ```
 
 ## Decisões que divergem da especificação original
@@ -233,6 +241,63 @@ precisa funcionar sem atrito.
 Nada usa `parse_mode`. O corpo do post é texto de gente e pode conter `<`, `&`
 ou `_` — em HTML ou Markdown, um caractere desses faz o Telegram recusar a
 mensagem inteira, e o dev fica sem post sem entender por quê.
+
+## O painel
+
+**CSS Modules e custom properties, sem framework.** Tema claro/escuro é
+literalmente trocar o valor de variáveis, que é para isso que elas existem —
+`dark:` de framework resolveria o mesmo problema em troca de uma dependência,
+um passo de build e classes longas no meio do JSX.
+
+**O tema tem TRÊS estados, não dois.** `:root` é claro; `prefers-color-scheme`
+cobre quem não escolheu; `[data-tema]` cobre a escolha manual — e precisa
+cobrir as duas direções, senão quem usa o sistema no escuro e escolhe claro
+continua no escuro. O valor sai do cookie **no servidor**, então não há piscada
+de tela clara antes do escuro; `localStorage` só saberia depois do primeiro
+render.
+
+**Qual ícone o alternador mostra é decisão do CSS**, não do React: o servidor
+não sabe o `prefers-color-scheme` de quem pediu a página, e um botão que nasce
+com o ícone errado e se corrige na hidratação é visível.
+
+**O âmbar aparece uma vez por tela**, sempre na ação principal — a mesma regra
+que a marca aplica ao nó de commit. Estado não usa âmbar: pendente e cumprido
+se distinguem por forma e por cinza, para o âmbar continuar querendo dizer
+"clique aqui". Nenhum estado depende só de cor.
+
+**As seções são compartilhadas entre a introdução e Conexões.** A introdução é
+a mesma coisa com a moldura de "o que falta e em que ordem". Duas cópias
+divergiriam no primeiro ajuste, e a errada seria a que o dev novo vê.
+
+**A introdução some quando termina**, e o histórico vira a tela inicial — mas
+uma faixa reaparece em qualquer tela quando algo obrigatório quebra. Sistema
+que para de funcionar em silêncio é pior do que um que nunca funcionou.
+
+**A decisão do painel usa a MESMA função do Telegram.** Duas implementações de
+"aprovar encerra as irmãs" divergiriam, e a errada seria a menos testada.
+
+## Quem pode entrar
+
+A lista saiu de `ALLOWED_GITHUB_LOGINS` e foi para `allowed_logins`, porque
+liberar um dev não pode exigir acesso ao painel da Vercel e um redeploy. A
+variável sobreviveu com dois papéis: **semente**, para o primeiro login existir
+quando o banco está vazio, e **escotilha**, para o dia em que ninguém conseguir
+entrar. Os dois caminhos valem sempre.
+
+`users.role` é `owner` ou `dev`. **O primeiro usuário a entrar vira dono, e é a
+única forma de virar** — não existe tela que promova ninguém, porque uma
+promoção de si mesmo seria a única coisa que um convidado precisaria descobrir
+para tomar o sistema. O dono não pode ser removido: sem isso, um clique
+deixaria o sistema sem ninguém capaz de convidar.
+
+A checagem de papel acontece na Server Action e na página, **não em quem
+desenha o menu**. Esconder a aba esconde na aparência; uma Server Action é um
+endpoint como outro qualquer, e quem souber o nome dela pode chamá-la sem nunca
+ter visto o menu.
+
+Remover apaga o convite **e** desativa a conta. Só apagar o convite não fecha
+porta nenhuma — quem já entrou tem sessão aberta e continuaria entrando por
+catorze dias.
 
 ## Login, sessão e a tela de introdução
 

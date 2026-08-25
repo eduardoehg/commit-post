@@ -1,0 +1,13 @@
+.pessoa {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.protegido {
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+  white-space: nowrap;
+}

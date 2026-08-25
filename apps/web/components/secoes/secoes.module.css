@@ -1,0 +1,81 @@
+/*
+ * Estilos compartilhados pelas seções.
+ *
+ * Um módulo só para as seis, e não um por seção, porque elas usam exatamente
+ * as mesmas peças: uma lista, uma linha de formulário, um par de botões e uma
+ * nota no fim. Seis arquivos com as mesmas cinco regras seria o custo de
+ * manutenção sem o benefício do escopo.
+ */
+
+.acoes {
+  display: flex;
+  gap: var(--e2);
+  flex-wrap: wrap;
+}
+
+.secundario {
+  color: var(--texto-fraco);
+  font-weight: 400;
+}
+
+.quebra {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.subtitulo {
+  margin-top: var(--e6);
+  padding-top: var(--e5);
+  border-top: 1px solid var(--borda);
+}
+
+.subdescricao {
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  margin: var(--e1) 0 var(--e4);
+  max-width: 56ch;
+}
+
+/* O bloco recolhido que explica o alcance de uma concessão. */
+.detalhes {
+  margin-bottom: var(--e4);
+  font-size: var(--t-sm);
+}
+
+.detalhes summary {
+  cursor: pointer;
+  color: var(--texto-suave);
+  padding: var(--e2) 0;
+}
+
+.detalhes summary:hover {
+  color: var(--texto);
+}
+
+.detalhes p {
+  color: var(--texto-suave);
+  margin-bottom: var(--e3);
+  max-width: 62ch;
+}
+
+.detalhes p:last-child {
+  margin-bottom: 0;
+}
+
+.indisponivel {
+  color: var(--texto-fraco);
+  font-size: var(--t-sm);
+  max-width: 56ch;
+}
+
+.linhaRepo {
+  display: flex;
+  gap: var(--e2);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Repositório desligado: o campo continua editável, só não grita por atenção. */
+.linhaRepo input[data-inativo="sim"] {
+  opacity: 0.55;
+}

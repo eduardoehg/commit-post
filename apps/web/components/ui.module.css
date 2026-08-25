@@ -1,0 +1,222 @@
+/* --- Botões e ações ---------------------------------------------------- */
+
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--e2);
+  padding: var(--e2) var(--e4);
+  border-radius: var(--r1);
+  border: 1px solid transparent;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--transicao), border-color var(--transicao),
+    color var(--transicao);
+}
+
+/*
+ * O âmbar aparece uma vez por tela, sempre na ação principal — a mesma regra
+ * que a marca aplica ao nó de commit. Se duas coisas na tela puxam o olho com
+ * a mesma força, nenhuma puxa.
+ */
+.principal {
+  background: var(--acao);
+  color: var(--acao-texto);
+}
+
+.principal:hover {
+  background: var(--acao-hover);
+}
+
+.discreto {
+  background: var(--superficie);
+  border-color: var(--borda);
+  color: var(--texto);
+}
+
+.discreto:hover {
+  border-color: var(--borda-forte);
+  background: var(--superficie-2);
+}
+
+.perigo {
+  background: transparent;
+  border-color: transparent;
+  color: var(--erro);
+}
+
+.perigo:hover {
+  background: var(--erro-fundo);
+}
+
+/* --- Cartão ------------------------------------------------------------ */
+
+.cartao {
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--r2);
+  padding: var(--e5);
+  box-shadow: var(--sombra);
+}
+
+.cartao + .cartao {
+  margin-top: var(--e4);
+}
+
+.cartaoTitulo {
+  margin-bottom: var(--e1);
+}
+
+.cartaoDescricao {
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  margin-bottom: var(--e4);
+  max-width: 56ch;
+}
+
+/* --- Recados ----------------------------------------------------------- */
+
+.recado {
+  padding: var(--e3) var(--e4);
+  border-radius: var(--r1);
+  border: 1px solid transparent;
+  font-size: var(--t-sm);
+  margin-bottom: var(--e4);
+}
+
+.erro {
+  background: var(--erro-fundo);
+  border-color: color-mix(in srgb, var(--erro) 30%, transparent);
+  color: var(--erro);
+}
+
+.aviso {
+  background: var(--aviso-fundo);
+  border-color: color-mix(in srgb, var(--aviso) 30%, transparent);
+  color: var(--aviso);
+}
+
+.ok {
+  background: var(--ok-fundo);
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  color: var(--ok);
+}
+
+.neutro {
+  background: var(--superficie-2);
+  border-color: var(--borda);
+  color: var(--texto-suave);
+}
+
+/* --- Listas ------------------------------------------------------------ */
+
+.lista {
+  list-style: none;
+  margin: 0 0 var(--e4);
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  padding: var(--e3) 0;
+  border-bottom: 1px solid var(--borda);
+  font-size: var(--t-sm);
+  min-width: 0;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.vazio {
+  color: var(--texto-fraco);
+  font-size: var(--t-sm);
+  padding: var(--e4) 0;
+}
+
+.nota {
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+  margin-top: var(--e3);
+  max-width: 62ch;
+}
+
+/* --- Formulário -------------------------------------------------------- */
+
+.campo {
+  flex: 1;
+  min-width: 0;
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--r1);
+  background: var(--superficie-2);
+  font-size: var(--t-sm);
+  transition: border-color var(--transicao);
+}
+
+.campo:hover {
+  border-color: var(--borda-forte);
+}
+
+.linhaForm {
+  display: flex;
+  gap: var(--e2);
+  align-items: center;
+}
+
+/* --- Selo de estado ---------------------------------------------------- */
+
+.selo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  padding: 2px var(--e2);
+  border-radius: var(--r-pilula);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.selo_ok {
+  background: var(--ok-fundo);
+  color: var(--ok);
+}
+
+.selo_pendente {
+  background: var(--superficie-2);
+  color: var(--texto-suave);
+}
+
+.selo_inativo {
+  background: var(--superficie-2);
+  color: var(--texto-fraco);
+}
+
+.selo_erro {
+  background: var(--erro-fundo);
+  color: var(--erro);
+}
+
+/* --- Cabeçalho de página ----------------------------------------------- */
+
+.cabecalhoPagina {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--e4);
+  flex-wrap: wrap;
+  margin-bottom: var(--e6);
+}
+
+.descricaoPagina {
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  margin-top: var(--e2);
+  max-width: 60ch;
+}

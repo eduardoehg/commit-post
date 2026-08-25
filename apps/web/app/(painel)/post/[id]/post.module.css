@@ -1,0 +1,38 @@
+.editor {
+  width: 100%;
+  padding: var(--e4);
+  border: 1px solid var(--borda);
+  border-radius: var(--r1);
+  background: var(--superficie-2);
+  font-size: var(--t-sm);
+  line-height: var(--linha);
+  resize: vertical;
+  /* O post é texto corrido, não código: fonte de leitura, não monoespaçada. */
+  font-family: var(--fonte);
+}
+
+.editor:read-only {
+  color: var(--texto-suave);
+  resize: none;
+}
+
+.rodapeEditor {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  margin-top: var(--e3);
+}
+
+.contagem {
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.decisao {
+  display: flex;
+  gap: var(--e3);
+  flex-wrap: wrap;
+}

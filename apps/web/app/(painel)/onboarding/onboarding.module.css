@@ -1,0 +1,98 @@
+.cabecalho {
+  margin-bottom: var(--e6);
+}
+
+.chamada {
+  color: var(--texto-suave);
+  margin-top: var(--e2);
+  max-width: 60ch;
+}
+
+.passos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+}
+
+.passo {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--e4);
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: var(--r2);
+  padding: var(--e5);
+  box-shadow: var(--sombra);
+}
+
+/*
+ * O passo que vem a seguir ganha um contorno, não uma cor de fundo: o âmbar já
+ * está no botão dentro dele, e duas coisas âmbar no mesmo cartão brigam.
+ */
+.passo[data-destacado="sim"] {
+  border-color: var(--acao);
+  box-shadow: var(--sombra-forte);
+}
+
+.passo[data-estado="indisponivel"] {
+  background: var(--superficie-2);
+  box-shadow: none;
+}
+
+.marcador {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--r-pilula);
+  border: 1px solid var(--borda-forte);
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cumprido: o verde é de estado, e nunca de ação. */
+.passo[data-estado="feito"] .marcador {
+  background: var(--ok-fundo);
+  border-color: transparent;
+  color: var(--ok);
+}
+
+.conteudoPasso {
+  min-width: 0;
+}
+
+.tituloPasso {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+  flex-wrap: wrap;
+}
+
+.opcional {
+  font-size: var(--t-xs);
+  font-weight: 400;
+  color: var(--texto-fraco);
+  border: 1px solid var(--borda);
+  border-radius: var(--r-pilula);
+  padding: 0 var(--e2);
+}
+
+.resumoPasso {
+  color: var(--texto-suave);
+  font-size: var(--t-sm);
+  margin: var(--e1) 0 var(--e4);
+  max-width: 58ch;
+}
+
+@media (max-width: 40rem) {
+  .passo {
+    grid-template-columns: 1fr;
+    gap: var(--e3);
+    padding: var(--e4);
+  }
+}

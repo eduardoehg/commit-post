@@ -1,84 +1,78 @@
 /**
  * A porta de entrada.
  *
- * Quem já tem sessão nem vê esta tela — vai direto para a introdução. Quem não
- * tem vê o que o sistema faz antes de decidir entrar, e principalmente a regra
- * que responde à primeira pergunta de qualquer dev: o que exatamente vai parar
- * no meu perfil.
+ * Quem já tem sessão nem vê esta tela. Quem não tem vê o que o sistema faz
+ * antes de decidir entrar — e principalmente a regra que responde à primeira
+ * pergunta de qualquer dev: o que exatamente vai parar no meu perfil.
+ *
+ * Não há campo de senha porque não há senha. Quem prova quem você é é o
+ * GitHub; aqui só existe a confirmação disso.
  */
 
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { AlternadorTema } from "@/components/AlternadorTema";
+import { Marca } from "@/components/Marca";
+import { Acao, Recado } from "@/components/ui";
 import { currentUser } from "@/lib/runtime";
+import { primeiroParam } from "@/lib/params";
+import estilos from "./entrada.module.css";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Entrar" };
 
-function primeiro(valor: string | string[] | undefined): string | undefined {
-  return Array.isArray(valor) ? valor[0] : valor;
-}
-
-export default async function Home({
+export default async function Entrada({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  if ((await currentUser()) !== null) redirect("/onboarding");
+  if ((await currentUser()) !== null) redirect("/inicio");
 
-  const erro = primeiro((await searchParams)["erro"]);
+  const erro = primeiroParam((await searchParams)["erro"]);
 
   return (
-    <main>
-      <h1 style={{ fontSize: "1.8rem", marginBottom: "0.5rem" }}>CommitPost</h1>
-      <p style={{ fontSize: "1.05rem", color: "#3c4043", marginTop: 0 }}>
-        Seus commits viram posts de LinkedIn. Você aprova cada um antes de qualquer
-        coisa ir ao ar.
-      </p>
+    <main className={estilos.tela}>
+      <div className={estilos.canto}>
+        <AlternadorTema />
+      </div>
 
-      {erro !== undefined && (
-        <p
-          style={{
-            background: "#fce8e6",
-            border: "1px solid #dadce0",
-            borderRadius: "0.5rem",
-            padding: "0.75rem 1rem",
-          }}
-        >
-          {erro}
+      <div className={estilos.cartao}>
+        <div className={estilos.marca}>
+          <Marca tamanho={40} />
+          <h1 className={estilos.nome}>CommitPost</h1>
+        </div>
+
+        <p className={estilos.chamada}>
+          Seus commits viram posts de LinkedIn. Você aprova cada um antes de qualquer
+          coisa ir ao ar.
         </p>
-      )}
 
-      <ul style={{ paddingLeft: "1.2rem", color: "#3c4043" }}>
-        <li>
-          <strong>Nada identifica onde você trabalha.</strong> O post fala da solução
-          técnica; nome de empresa, cliente, produto e repositório não têm por onde sair.
-        </li>
-        <li>
-          <strong>Nada é publicado sozinho.</strong> Você recebe 2 ou 3 versões no
-          Telegram e decide.
-        </li>
-        <li>
-          <strong>Sua mensagem de commit não fica guardada.</strong> Ela é lida, vira
-          rótulos genéricos, e é descartada na mesma execução.
-        </li>
-      </ul>
+        {erro !== undefined && <Recado tom="erro">{erro}</Recado>}
 
-      <a
-        href="/api/auth/github/login"
-        style={{
-          display: "inline-block",
-          background: "#1a1a1a",
-          color: "#fff",
-          borderRadius: "0.375rem",
-          padding: "0.6rem 1.1rem",
-          textDecoration: "none",
-          marginTop: "0.5rem",
-        }}
-      >
-        Entrar com o GitHub
-      </a>
+        <ul className={estilos.promessas}>
+          <li>
+            <strong>Nada identifica onde você trabalha.</strong> O post fala da solução
+            técnica; nome de empresa, cliente, produto e repositório não têm por onde
+            sair.
+          </li>
+          <li>
+            <strong>Nada é publicado sozinho.</strong> Você recebe 2 ou 3 versões no
+            Telegram e decide.
+          </li>
+          <li>
+            <strong>Sua mensagem de commit não fica guardada.</strong> Ela é lida, vira
+            rótulos genéricos, e é descartada na mesma execução.
+          </li>
+        </ul>
 
-      <p style={{ fontSize: "0.85rem", color: "#70757a" }}>
-        O acesso é restrito aos devs autorizados pelo operador do sistema.
-      </p>
+        <Acao href="/api/auth/github/login" tom="principal">
+          Entrar com o GitHub
+        </Acao>
+
+        <p className={estilos.rodape}>
+          O acesso é liberado por quem administra o sistema. Não há cadastro nem senha.
+        </p>
+      </div>
     </main>
   );
 }

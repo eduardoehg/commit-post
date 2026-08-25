@@ -1,0 +1,101 @@
+.nav {
+  padding: 0 var(--e3);
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--e3);
+  padding: var(--e2) var(--e3);
+  border-radius: var(--r1);
+  color: var(--texto-suave);
+  text-decoration: none;
+  font-size: var(--t-sm);
+  transition: background var(--transicao), color var(--transicao);
+}
+
+.item:hover {
+  background: var(--superficie-2);
+  color: var(--texto);
+}
+
+/*
+ * O item ativo é marcado por `aria-current`, não por uma classe.
+ *
+ * Assim a informação existe uma vez só: quem lê com leitor de tela e quem lê
+ * com os olhos recebem a mesma coisa, da mesma fonte. Uma classe `.ativo`
+ * separada podia dessincronizar do atributo e ninguém notaria.
+ */
+.item[aria-current="page"] {
+  background: var(--acao-fraca);
+  color: var(--texto);
+  font-weight: 500;
+}
+
+.item[aria-current="page"] svg {
+  color: var(--acao);
+}
+
+.rotulo {
+  flex: 1;
+  min-width: 0;
+}
+
+.distintivo {
+  flex: none;
+  min-width: 1.35rem;
+  padding: 0 var(--e1);
+  border-radius: var(--r-pilula);
+  background: var(--acao);
+  color: var(--acao-texto);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  line-height: 1.35rem;
+  text-align: center;
+}
+
+/*
+ * Em tela estreita a lateral vira barra no topo: os itens entram em linha e o
+ * rótulo some, sobrando o ícone. O rótulo continua no `aria-label` implícito
+ * do texto, que segue no HTML — some para os olhos, não para o leitor de tela.
+ */
+@media (max-width: 52rem) {
+  .nav {
+    padding: 0;
+    min-width: 0;
+  }
+
+  .lista {
+    flex-direction: row;
+    gap: var(--e1);
+  }
+
+  .rotulo {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .item {
+    padding: var(--e2);
+  }
+
+  .distintivo {
+    min-width: 1.1rem;
+    line-height: 1.1rem;
+    font-size: 0.7rem;
+  }
+}

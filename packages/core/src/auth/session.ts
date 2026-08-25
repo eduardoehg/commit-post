@@ -27,6 +27,8 @@ export interface SessionUser {
   displayName: string | null;
   avatarUrl: string | null;
   telegramChatId: string | null;
+  /** 'owner' libera acesso de outros devs; 'dev' não. */
+  role: string;
   active: boolean;
 }
 
@@ -82,6 +84,7 @@ export async function resolveSession(
       displayName: users.displayName,
       avatarUrl: users.avatarUrl,
       telegramChatId: users.telegramChatId,
+      role: users.role,
       active: users.active,
     })
     .from(sessions)

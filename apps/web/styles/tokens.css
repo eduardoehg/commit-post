@@ -1,0 +1,156 @@
+/*
+ * Tokens de design do CommitPost.
+ *
+ * A paleta vem da marca (ver public/brand/README.md): petrol, osso e âmbar.
+ * O âmbar é a única cor quente e aparece UMA VEZ por tela, sempre na ação
+ * principal — a mesma regra que a marca aplica ao nó de commit. Estado não usa
+ * âmbar: pendente x concluído se distinguem por forma (círculo vazio x cheio)
+ * e por cinza, para o âmbar continuar querendo dizer "clique aqui".
+ *
+ * TEMA — são três estados, não dois:
+ *
+ *   1. `:root`                     → claro, o padrão
+ *   2. `@media (prefers-color-scheme: dark)` → escuro, quando o sistema pede
+ *      e o dev não escolheu manualmente
+ *   3. `[data-tema="escuro"|"claro"]`        → a escolha manual, que ganha
+ *      dos dois primeiros nos dois sentidos
+ *
+ * O terceiro precisa cobrir as DUAS direções: sem `[data-tema="claro"]`,
+ * quem usa o sistema no escuro e escolhe claro continuaria no escuro.
+ */
+
+:root {
+  /* --- Superfícies e texto ------------------------------------------- */
+  --fundo: #edf3f2;
+  --superficie: #ffffff;
+  --superficie-2: #f5f9f8;
+  --borda: #d2e0dd;
+  --borda-forte: #b4c9c6;
+
+  --texto: #0e3a42;
+  --texto-suave: #4a6c72;
+  --texto-fraco: #7b989c;
+
+  /* --- Ação: o âmbar, uma vez por tela ------------------------------- */
+  --acao: #d97a06;
+  --acao-hover: #b96606;
+  --acao-texto: #ffffff;
+  --acao-fraca: #fdf3e4;
+
+  /* --- Estados ------------------------------------------------------- */
+  --ok: #1a6b4e;
+  --ok-fundo: #e6f2ec;
+  --erro: #a52820;
+  --erro-fundo: #fbeae8;
+  --aviso: #8a6d00;
+  --aviso-fundo: #fdf6e0;
+
+  /* --- Foco: sempre visível, nunca removido ------------------------- */
+  --foco: #0e3a42;
+
+  --sombra: 0 1px 2px rgb(14 58 66 / 0.06), 0 4px 12px rgb(14 58 66 / 0.05);
+  --sombra-forte: 0 2px 4px rgb(14 58 66 / 0.08), 0 12px 32px rgb(14 58 66 / 0.1);
+}
+
+/* O sistema pede escuro e o dev não escolheu nada. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --fundo: #08222a;
+    --superficie: #0e3a42;
+    --superficie-2: #123f48;
+    --borda: #1d515b;
+    --borda-forte: #2b6672;
+
+    --texto: #eaf2f1;
+    --texto-suave: #a9c4c5;
+    --texto-fraco: #7897a0;
+
+    --acao: #ffb03a;
+    --acao-hover: #ffc25f;
+    --acao-texto: #0e3a42;
+    --acao-fraca: #2a3a2c;
+
+    --ok: #6fd39f;
+    --ok-fundo: #10322a;
+    --erro: #ff9d94;
+    --erro-fundo: #3a1e1c;
+    --aviso: #f0c14b;
+    --aviso-fundo: #332c14;
+
+    --foco: #ffb03a;
+
+    --sombra: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px rgb(0 0 0 / 0.25);
+    --sombra-forte: 0 2px 4px rgb(0 0 0 / 0.35), 0 12px 32px rgb(0 0 0 / 0.4);
+  }
+}
+
+/* A escolha manual ganha, venha o sistema de onde vier. */
+:root[data-tema="escuro"] {
+  --fundo: #08222a;
+  --superficie: #0e3a42;
+  --superficie-2: #123f48;
+  --borda: #1d515b;
+  --borda-forte: #2b6672;
+
+  --texto: #eaf2f1;
+  --texto-suave: #a9c4c5;
+  --texto-fraco: #7897a0;
+
+  --acao: #ffb03a;
+  --acao-hover: #ffc25f;
+  --acao-texto: #0e3a42;
+  --acao-fraca: #2a3a2c;
+
+  --ok: #6fd39f;
+  --ok-fundo: #10322a;
+  --erro: #ff9d94;
+  --erro-fundo: #3a1e1c;
+  --aviso: #f0c14b;
+  --aviso-fundo: #332c14;
+
+  --foco: #ffb03a;
+
+  --sombra: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 12px rgb(0 0 0 / 0.25);
+  --sombra-forte: 0 2px 4px rgb(0 0 0 / 0.35), 0 12px 32px rgb(0 0 0 / 0.4);
+}
+
+:root {
+  /* --- Escala de espaço: base 4px ------------------------------------ */
+  --e1: 0.25rem;
+  --e2: 0.5rem;
+  --e3: 0.75rem;
+  --e4: 1rem;
+  --e5: 1.25rem;
+  --e6: 1.5rem;
+  --e8: 2rem;
+  --e10: 2.5rem;
+  --e12: 3rem;
+
+  /* --- Raio ---------------------------------------------------------- */
+  --r1: 0.375rem;
+  --r2: 0.625rem;
+  --r3: 1rem;
+  --r-pilula: 999px;
+
+  /* --- Tipografia ---------------------------------------------------- */
+  --fonte: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --fonte-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --t-xs: 0.8125rem;
+  --t-sm: 0.875rem;
+  --t-base: 1rem;
+  --t-lg: 1.125rem;
+  --t-xl: 1.375rem;
+  --t-2xl: 1.75rem;
+
+  --linha-apertada: 1.3;
+  --linha: 1.6;
+
+  /* --- Layout -------------------------------------------------------- */
+  --lateral: 15rem;
+  --conteudo-max: 46rem;
+
+  --transicao: 140ms ease;
+}

@@ -1,0 +1,125 @@
+/*
+ * Base: reset curto e elementos crus.
+ *
+ * Só o que corrige diferença entre navegadores ou padrão ruim do HTML. Nada de
+ * aparência de componente — isso vive nos módulos CSS, junto do componente que
+ * usa. A regra para saber se algo pertence aqui: se um `<button>` sem classe
+ * nenhuma ficaria errado sem isto, é base; se é sobre um botão específico, é
+ * módulo.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  /* Sem isto, o tema escuro deixa a barra de rolagem clara e ela grita. */
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-tema="claro"]) {
+    color-scheme: dark;
+  }
+}
+
+html[data-tema="escuro"] {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--fundo);
+  color: var(--texto);
+  font-family: var(--fonte);
+  font-size: var(--t-base);
+  line-height: var(--linha);
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  line-height: var(--linha-apertada);
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--t-2xl);
+}
+h2 {
+  font-size: var(--t-lg);
+}
+h3 {
+  font-size: var(--t-base);
+}
+
+/* Parágrafo longo quebra melhor sem órfã na última linha. */
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--borda-forte);
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* Herdar a fonte não é padrão em campo de formulário, e a diferença aparece. */
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+code,
+kbd {
+  font-family: var(--fonte-mono);
+  font-size: 0.9em;
+}
+
+/*
+ * Foco visível, sempre. `:focus-visible` já poupa quem usa mouse, então não há
+ * motivo para remover — e remover é o que quebra a navegação por teclado.
+ */
+:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+  border-radius: var(--r1);
+}
+
+/* Quem pediu menos movimento no sistema não deve ver transição nenhuma. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
