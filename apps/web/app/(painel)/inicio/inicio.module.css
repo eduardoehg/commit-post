@@ -55,6 +55,31 @@
 }
 
 /*
+ * A contagem ao lado do rótulo. Números tabulares para os filtros não
+ * dançarem de largura quando um passa de 9 para 10.
+ */
+.contagem {
+  min-width: 1.35rem;
+  padding: 0 var(--e1);
+  border-radius: var(--r-pilula);
+  background: var(--superficie-2);
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.filtros a[aria-current="page"] .contagem {
+  background: var(--acao);
+  color: var(--acao-texto);
+}
+
+/* Filtro sem nada não some — só para de disputar atenção. */
+.filtros a[data-vazio="sim"] {
+  opacity: 0.55;
+}
+
+/*
  * `pre-wrap` porque o post tem parágrafos e quebras que o autor escolheu — e
  * são elas que fazem o texto funcionar no feed. Colapsar aqui mostraria uma
  * coisa e copiaria outra.

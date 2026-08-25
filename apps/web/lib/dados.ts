@@ -6,7 +6,7 @@
  * seções — e duas versões da mesma consulta divergiriam no primeiro ajuste.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { currentOrNewLinkCode, telegramDeepLink } from "@commitpost/core/auth";
 import {
   deniedTerms,
@@ -104,6 +104,32 @@ export interface PostHistorico {
   janelaInicio: Date;
   janelaFim: Date;
   commits: number;
+}
+
+/**
+ * Quantos posts em cada estado.
+ *
+ * Uma consulta agrupada, não uma por filtro: o número aparece em todos os
+ * botões ao mesmo tempo, e cinco consultas para desenhar uma barra seria
+ * pagar cinco vezes pela mesma informação.
+ */
+export async function contagemPorStatus(userId: number): Promise<Record<string, number>> {
+  const linhas = await db()
+    .select({ status: postCandidates.status, n: count() })
+    .from(postCandidates)
+    .where(eq(postCandidates.userId, userId))
+    .groupBy(postCandidates.status);
+
+  const contagem: Record<string, number> = {};
+  let total = 0;
+
+  for (const linha of linhas) {
+    contagem[linha.status] = linha.n;
+    total += linha.n;
+  }
+
+  contagem["todos"] = total;
+  return contagem;
 }
 
 /**

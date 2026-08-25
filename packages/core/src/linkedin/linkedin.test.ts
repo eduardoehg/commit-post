@@ -118,14 +118,14 @@ describe("publishPost", () => {
   it("publica como PUBLICADO e PÚBLICO, sem rascunho", async () => {
     // O padrão de rascunho transformaria "aprovei" em "não saiu", e o dev só
     // descobriria olhando o próprio perfil.
-    const chamada = vi.fn(() =>
+    const chamada = vi.fn((_url: string, _init?: RequestInit) =>
       Promise.resolve(new Response("", { status: 201, headers: { "x-restli-id": "urn:li:share:1" } })),
     );
     vi.stubGlobal("fetch", chamada);
 
     await publishPost(base);
 
-    const corpo = JSON.parse(String(chamada.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    const corpo = JSON.parse(String(chamada.mock.calls[0]?.[1]?.body ?? "{}")) as Record<string, unknown>;
     expect(corpo["lifecycleState"]).toBe("PUBLISHED");
     expect(corpo["visibility"]).toBe("PUBLIC");
     expect(corpo["author"]).toBe("urn:li:person:abc");
@@ -135,14 +135,14 @@ describe("publishPost", () => {
     // Ele já atravessou as três barreiras. Reformatar aqui significaria
     // publicar algo diferente do que a pessoa leu e aprovou.
     const texto = "Linha 1.\n\nLinha 2 com <sinal> & \"aspas\".";
-    const chamada = vi.fn(() =>
+    const chamada = vi.fn((_url: string, _init?: RequestInit) =>
       Promise.resolve(new Response("", { status: 201, headers: { "x-restli-id": "urn:li:share:1" } })),
     );
     vi.stubGlobal("fetch", chamada);
 
     await publishPost({ ...base, texto });
 
-    const corpo = JSON.parse(String(chamada.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    const corpo = JSON.parse(String(chamada.mock.calls[0]?.[1]?.body ?? "{}")) as Record<string, unknown>;
     expect(corpo["commentary"]).toBe(texto);
   });
 

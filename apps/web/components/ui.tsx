@@ -61,7 +61,9 @@ export function Acao({
   // `exactOptionalPropertyTypes`: os tipos do Next não aceitam a propriedade
   // presente valendo `undefined`. Só o que a aplicação usa atravessa, e é
   // melhor assim — um `target` num link interno seria um bug silencioso.
-  const { "aria-current": atual, title } = resto;
+  const { "aria-current": atual, title, "data-vazio": vazio } = resto as typeof resto & {
+    "data-vazio"?: string;
+  };
 
   return (
     <Link
@@ -69,6 +71,7 @@ export function Acao({
       href={href}
       {...(atual === undefined ? {} : { "aria-current": atual })}
       {...(title === undefined ? {} : { title })}
+      {...(vazio === undefined ? {} : { "data-vazio": vazio })}
     >
       {children}
     </Link>

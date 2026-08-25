@@ -5,14 +5,18 @@
  * navegação e este vira o lugar onde o dev chega. É a diferença entre um
  * sistema que está sendo montado e um que está trabalhando.
  *
- * O que a tela otimiza é copiar rápido: enquanto a publicação automática não
- * existir, o caminho de um post aprovado até o LinkedIn passa por um
- * Ctrl+C — e é isso que não pode ter atrito.
+ * O filtro padrão é **aprovados**, e não "todos", porque é a única lista que
+ * pede alguma coisa de quem chega: enquanto a publicação automática não
+ * cobrir tudo, aprovado é o que ainda precisa ir para o LinkedIn. Recusado e
+ * encerrado são arquivo, e arquivo não é o que se abre primeiro.
+ *
+ * Cada filtro mostra quantos tem. Sem o número, escolher entre seis abas é
+ * adivinhar qual delas não está vazia.
  */
 
 import type { Metadata } from "next";
 import { Acao, Recado, Selo, TituloPagina, Vazio, type EstadoSelo } from "@/components/ui";
-import { historicoDe, type PostHistorico } from "@/lib/dados";
+import { contagemPorStatus, historicoDe, type PostHistorico } from "@/lib/dados";
 import { carregarContexto } from "@/lib/painel";
 import { primeiroParam } from "@/lib/params";
 import estilos from "./inicio.module.css";
@@ -20,13 +24,21 @@ import estilos from "./inicio.module.css";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Histórico" };
 
-/** Os filtros da barra. `undefined` é "tudo". */
+/** Marcador de "sem filtro" na URL. `/inicio` sozinho já significa aprovados. */
+const TODOS = "todos";
+const PADRAO = "approved";
+
+/**
+ * A ordem segue o quanto cada lista pede de quem está olhando: aprovado
+ * espera uma ação, esperando espera uma decisão, o resto é registro.
+ */
 const FILTROS = [
-  { chave: undefined, rotulo: "Todos" },
-  { chave: "pending", rotulo: "Esperando" },
   { chave: "approved", rotulo: "Aprovados" },
+  { chave: "pending", rotulo: "Esperando" },
   { chave: "published", rotulo: "Publicados" },
   { chave: "rejected", rotulo: "Recusados" },
+  { chave: "superseded", rotulo: "Encerrados" },
+  { chave: TODOS, rotulo: "Todos" },
 ] as const;
 
 const ROTULO_STATUS: Record<string, { texto: string; estado: EstadoSelo }> = {
@@ -37,6 +49,14 @@ const ROTULO_STATUS: Record<string, { texto: string; estado: EstadoSelo }> = {
   superseded: { texto: "encerrado", estado: "inativo" },
 };
 
+const VAZIO_POR_FILTRO: Record<string, string> = {
+  approved: "Nenhum post aprovado esperando publicação.",
+  pending: "Nenhum post esperando decisão.",
+  published: "Nada publicado ainda.",
+  rejected: "Nenhum post recusado.",
+  superseded: "Nenhuma versão encerrada.",
+};
+
 export default async function PaginaInicio({
   searchParams,
 }: {
@@ -45,8 +65,15 @@ export default async function PaginaInicio({
   const { user, resumo } = await carregarContexto();
   const params = await searchParams;
 
-  const filtro = primeiroParam(params["status"]);
-  const posts = await historicoDe(user.id, filtro);
+  const pedido = primeiroParam(params["status"]) ?? PADRAO;
+  const filtro = FILTROS.some((f) => f.chave === pedido) ? pedido : PADRAO;
+
+  const [posts, contagem] = await Promise.all([
+    historicoDe(user.id, filtro === TODOS ? undefined : filtro),
+    contagemPorStatus(user.id),
+  ]);
+
+  const nada = (contagem[TODOS] ?? 0) === 0;
 
   return (
     <>
@@ -58,18 +85,24 @@ export default async function PaginaInicio({
       {primeiroParam(params["aviso"]) !== undefined && (
         <Recado tom="aviso">{primeiroParam(params["aviso"])}</Recado>
       )}
+      {primeiroParam(params["erro"]) !== undefined && (
+        <Recado tom="erro">{primeiroParam(params["erro"])}</Recado>
+      )}
 
       <nav className={estilos.filtros} aria-label="Filtrar por estado">
         {FILTROS.map((f) => {
-          const ativo = filtro === f.chave;
+          const quantos = contagem[f.chave] ?? 0;
+
           return (
             <Acao
-              key={f.rotulo}
-              href={f.chave === undefined ? "/inicio" : `/inicio?status=${f.chave}`}
+              key={f.chave}
+              href={f.chave === PADRAO ? "/inicio" : `/inicio?status=${f.chave}`}
               tom="discreto"
-              aria-current={ativo ? "page" : undefined}
+              aria-current={filtro === f.chave ? "page" : undefined}
+              data-vazio={quantos === 0 ? "sim" : undefined}
             >
               {f.rotulo}
+              <span className={estilos.contagem}>{quantos}</span>
             </Acao>
           );
         })}
@@ -77,9 +110,11 @@ export default async function PaginaInicio({
 
       {posts.length === 0 ? (
         <Vazio>
-          {resumo.ready
-            ? "Nada ainda. O ciclo roda toda segunda e os posts aparecem aqui — e no seu Telegram."
-            : "Nada ainda. Termine as conexões obrigatórias para o primeiro ciclo rodar."}
+          {nada
+            ? resumo.ready
+              ? "Nada ainda. O ciclo roda toda segunda e os posts aparecem aqui — e no seu Telegram."
+              : "Nada ainda. Termine as conexões obrigatórias para o primeiro ciclo rodar."
+            : (VAZIO_POR_FILTRO[filtro] ?? "Nada neste filtro.")}
         </Vazio>
       ) : (
         <ol className={estilos.lista}>
