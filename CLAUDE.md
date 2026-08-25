@@ -80,7 +80,27 @@ Diferente da spec, as fases não são estritamente sequenciais:
 - **MVP para aqui**, com publicação manual (copiar do Telegram). Valida a
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
 - **Fase 6** — edição do post no painel, que a essa altura já existe.
-- **Fase 7** — publicação no LinkedIn ✅ (app liberado; falta o primeiro post real).
+- **Fase 7** — publicação no LinkedIn ✅, com post real no ar.
+
+Não existe **agendamento de publicação**: aprovar publica na hora. Escolher
+quando o post sai é a única coisa do fluxo original que ainda não foi feita.
+
+## A versão da API do LinkedIn
+
+`API_VERSION` é `AAAAMM` e cada versão vale **doze meses**. A primeira
+publicação real falhou com 426 por causa disso, e o custo foi descobrir na
+hora de publicar um post que já tinha sido aprovado.
+
+Para achar uma versão viva, mande um GET qualquer com o cabeçalho
+`LinkedIn-Version`: 426 é versão morta, e **qualquer outro status** — 403
+inclusive — significa aceita. Duas coisas que a documentação não diz: não
+existe uma versão por mês (`202512` nunca foi lançada, com `202511` e `202601`
+vivas dos dois lados), e a janela é fechada nas duas pontas — versão futura é
+tão recusada quanto vencida.
+
+O pipeline avisa **dois meses antes**, e o aviso vai para o chat do operador,
+não para os devs: consertar isto é editar código e publicar, e um dev que
+recebesse a mensagem não teria o que fazer com ela.
 
 ## O banco
 
