@@ -189,8 +189,13 @@
  * no HTML — quem usa leitor de tela lê a navegação inteira do mesmo jeito.
  */
 @media (min-width: 52.0625rem) {
+  /*
+   * DUAS colunas, sempre. Uma só faz o conteúdo cair na linha de baixo e
+   * escorrer por baixo da barra, que é sticky — o texto some pela esquerda e
+   * a tela parece quebrada sem nada no console.
+   */
   :root[data-lateral="recolhida"] .casca {
-    grid-template-columns: 4rem;
+    grid-template-columns: 4rem 1fr;
   }
 
   :root[data-lateral="recolhida"] .lateral {
