@@ -9,7 +9,14 @@
 
 import { and, eq, inArray } from "drizzle-orm";
 import { sendCandidates, type CandidatoParaEnvio } from "@commitpost/core/telegram";
-import { commits, postCandidates, repos, users, type Database } from "@commitpost/core/db";
+import {
+  commits,
+  postCandidates,
+  recordTelegramMessage,
+  repos,
+  users,
+  type Database,
+} from "@commitpost/core/db";
 import type { TechnicalFact } from "@commitpost/core/redact";
 
 export interface EnvioOptions {
@@ -60,7 +67,7 @@ export async function enviarParaAprovacao(options: EnvioOptions): Promise<EnvioR
 
   const shas = [...new Set(options.facts.flatMap((f) => f.sourceShas))];
 
-  const quantidade = await sendCandidates({
+  const enviados = await sendCandidates({
     token: options.botToken,
     chatId,
     candidatos: paraEnvio,
@@ -73,7 +80,15 @@ export async function enviarParaAprovacao(options: EnvioOptions): Promise<EnvioR
     },
   });
 
-  return { tipo: "enviado", quantidade };
+  // Guardado DEPOIS do envio, um a um, porque é o Telegram que atribui o id da
+  // mensagem. Se o envio falhar no meio, os que já foram ficam registrados e
+  // continuam editáveis; os que não foram ficam sem id e são ignorados na hora
+  // de apagar botões, em vez de gerar edição contra mensagem inexistente.
+  for (const { candidateId, messageId } of enviados) {
+    await recordTelegramMessage(db, candidateId, messageId);
+  }
+
+  return { tipo: "enviado", quantidade: enviados.length };
 }
 
 /**

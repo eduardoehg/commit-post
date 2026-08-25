@@ -407,6 +407,17 @@ export const postCandidates = pgTable(
     status: postStatus().notNull().default("pending"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
 
+    /**
+     * A mensagem do Telegram onde este candidato foi enviado.
+     *
+     * Existe para que o estado da tela acompanhe o do banco. Sem ela, aprovar
+     * uma variação encerrava as irmãs no banco e deixava os botões delas
+     * ativos no celular — o dev clicava achando que decidia, e nada acontecia.
+     * Uma tela de aprovação que mente sobre o próprio estado é o começo de
+     * alguém clicar sem ler.
+     */
+    telegramMessageId: integer("telegram_message_id"),
+
     createdAt,
   },
   (t) => [

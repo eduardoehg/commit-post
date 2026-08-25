@@ -1,0 +1,1 @@
+ALTER TABLE "post_candidates" ADD COLUMN "telegram_message_id" integer;

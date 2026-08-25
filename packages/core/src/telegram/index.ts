@@ -210,16 +210,21 @@ export async function sendCandidates(options: {
   chatId: string;
   candidatos: readonly CandidatoParaEnvio[];
   procedencia: Procedencia;
-}): Promise<number> {
+}): Promise<{ candidateId: number; messageId: number }[]> {
   const { token, chatId, candidatos, procedencia } = options;
-  if (candidatos.length === 0) return 0;
+  if (candidatos.length === 0) return [];
 
   await sendMessage(token, chatId, formatProvenance(procedencia, candidatos.map((c) => c.angulo)));
 
-  let enviados = 0;
+  const enviados: { candidateId: number; messageId: number }[] = [];
   for (const [indice, candidato] of candidatos.entries()) {
-    await sendMessage(token, chatId, candidato.texto, buildKeyboard(candidato.id, indice + 1));
-    enviados += 1;
+    const messageId = await sendMessage(
+      token,
+      chatId,
+      candidato.texto,
+      buildKeyboard(candidato.id, indice + 1),
+    );
+    enviados.push({ candidateId: candidato.id, messageId });
   }
 
   return enviados;

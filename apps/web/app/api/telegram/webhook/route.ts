@@ -231,11 +231,29 @@ async function responderDecisao(
   await tentarResponder(token, ctx.callbackId, aviso);
 
   if (legenda !== null && ctx.messageId !== null) {
-    try {
-      await markDecided(token, ctx.chatId, ctx.messageId, legenda);
-    } catch {
-      // Botão que não sumiu é chato, não é erro de estado.
+    await tentarMarcar(token, ctx.chatId, ctx.messageId, legenda);
+  }
+
+  // As irmãs encerradas também perdem os botões. Sem isto o dev clica nelas
+  // achando que decide, e nada acontece — foi exatamente o que aconteceu no
+  // primeiro lote de verdade.
+  if (ctx.resultado.tipo === "aplicada") {
+    for (const messageId of ctx.resultado.encerradas) {
+      await tentarMarcar(token, ctx.chatId, messageId, "— encerrada —");
     }
+  }
+}
+
+async function tentarMarcar(
+  token: string,
+  chatId: string,
+  messageId: number,
+  legenda: string,
+): Promise<void> {
+  try {
+    await markDecided(token, chatId, messageId, legenda);
+  } catch {
+    // Botão que não sumiu é chato, não é erro de estado.
   }
 }
 
@@ -258,8 +276,8 @@ function descreverDecisao(
   }
 
   const outros =
-    resultado.superseded > 0
-      ? ` As outras ${String(resultado.superseded)} versão(ões) foram encerradas.`
+    resultado.encerradas.length > 0
+      ? ` As outras ${String(resultado.encerradas.length)} versão(ões) foram encerradas.`
       : "";
 
   return {

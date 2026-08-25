@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeDatabase, createDatabase, type Database } from "./client";
-import { decideCandidate } from "./candidates";
+import { decideCandidate, recordTelegramMessage } from "./candidates";
 import { postBatches, postCandidates, users } from "./schema";
 
 /**
@@ -89,7 +89,7 @@ suite("decideCandidate", () => {
 
     const resultado = await decideCandidate(db, userId, escolhida ?? 0, "approve");
 
-    expect(resultado).toEqual({ tipo: "aplicada", decisao: "approve", superseded: 2 });
+    expect(resultado.tipo).toBe("aplicada");
     expect(await statusDe(escolhida ?? 0)).toBe("approved");
     expect(await statusDe(outra ?? 0)).toBe("superseded");
     expect(await statusDe(terceira ?? 0)).toBe("superseded");
@@ -101,7 +101,7 @@ suite("decideCandidate", () => {
 
     const resultado = await decideCandidate(db, userId, recusada ?? 0, "reject");
 
-    expect(resultado).toEqual({ tipo: "aplicada", decisao: "reject", superseded: 0 });
+    expect(resultado).toEqual({ tipo: "aplicada", decisao: "reject", encerradas: [] });
     expect(await statusDe(recusada ?? 0)).toBe("rejected");
     expect(await statusDe(outra ?? 0)).toBe("pending");
   });
@@ -164,6 +164,37 @@ suite("decideCandidate", () => {
     const inexistente = await decideCandidate(db, intruso, 2_000_000_000, "approve");
 
     expect(alheio).toEqual(inexistente);
+  });
+
+  it("devolve as mensagens das irmãs, para os botões delas sumirem", async () => {
+    // Sem isto o banco encerrava as irmãs e o celular seguia mostrando botões
+    // ativos nelas. O dev clicava achando que decidia e nada acontecia — foi o
+    // que aconteceu no primeiro lote de verdade.
+    const userId = await novoUsuario("mensagens");
+    const [escolhida, outra] = await novoLote(userId, 2);
+
+    await recordTelegramMessage(db, escolhida ?? 0, 1001);
+    await recordTelegramMessage(db, outra ?? 0, 1002);
+
+    const resultado = await decideCandidate(db, userId, escolhida ?? 0, "approve");
+
+    expect(resultado.tipo).toBe("aplicada");
+    if (resultado.tipo === "aplicada") expect(resultado.encerradas).toEqual([1002]);
+  });
+
+  it("ignora irmã que nunca chegou ao Telegram", async () => {
+    // Lote gravado antes de a coluna existir, ou envio que falhou no meio.
+    // Editar contra uma mensagem inexistente só geraria erro.
+    const userId = await novoUsuario("sem-mensagem");
+    const [escolhida, semId] = await novoLote(userId, 2);
+
+    await recordTelegramMessage(db, escolhida ?? 0, 2001);
+
+    const resultado = await decideCandidate(db, userId, escolhida ?? 0, "approve");
+
+    expect(resultado.tipo).toBe("aplicada");
+    if (resultado.tipo === "aplicada") expect(resultado.encerradas).toEqual([]);
+    expect(await statusDe(semId ?? 0)).toBe("superseded");
   });
 
   it("encerra só as irmãs do mesmo lote", async () => {

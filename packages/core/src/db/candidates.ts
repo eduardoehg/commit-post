@@ -13,7 +13,16 @@ import { postCandidates } from "./schema";
 export type Decisao = "approve" | "reject";
 
 export type ResultadoDecisao =
-  | { tipo: "aplicada"; decisao: Decisao; superseded: number }
+  | {
+      tipo: "aplicada";
+      decisao: Decisao;
+      /**
+       * As mensagens do Telegram das irmãs encerradas. Quem chama usa para
+       * apagar os botões delas — o estado da tela precisa acompanhar o do
+       * banco, senão o dev clica em algo que já não existe.
+       */
+      encerradas: number[];
+    }
   | { tipo: "ja-decidida"; statusAtual: string }
   | { tipo: "nao-encontrada" };
 
@@ -61,7 +70,7 @@ export async function decideCandidate(
     // Aprovar um candidato encerra os irmãos: as 2 ou 3 variações são do mesmo
     // trabalho, e publicar duas seria contar a mesma história duas vezes. Já
     // recusar um não diz nada sobre os outros — eles seguem esperando.
-    if (decisao === "reject") return { tipo: "aplicada", decisao, superseded: 0 };
+    if (decisao === "reject") return { tipo: "aplicada", decisao, encerradas: [] };
 
     // O aprovado não precisa ser excluído por id: ele acabou de sair de
     // `pending` na instrução acima, e é o `status` que o exclui daqui. Um
@@ -76,8 +85,27 @@ export async function decideCandidate(
           eq(postCandidates.status, "pending"),
         ),
       )
-      .returning({ id: postCandidates.id });
+      .returning({ messageId: postCandidates.telegramMessageId });
 
-    return { tipo: "aplicada", decisao, superseded: encerrados.length };
+    return {
+      tipo: "aplicada",
+      decisao,
+      // Candidato sem `telegram_message_id` é de um lote gravado antes desta
+      // coluna existir, ou que falhou no envio. Fica de fora em vez de virar
+      // uma edição contra uma mensagem que não existe.
+      encerradas: encerrados.map((e) => e.messageId).filter((id) => id !== null),
+    };
   });
+}
+
+/** Guarda onde cada candidato foi parar no Telegram, para poder editá-lo depois. */
+export async function recordTelegramMessage(
+  db: Database,
+  candidateId: number,
+  messageId: number,
+): Promise<void> {
+  await db
+    .update(postCandidates)
+    .set({ telegramMessageId: messageId })
+    .where(eq(postCandidates.id, candidateId));
 }
