@@ -12,78 +12,47 @@
   right: var(--e5);
 }
 
+/*
+ * Coluna centrada, tudo alinhado ao meio. Com quatro elementos na tela, o
+ * alinhamento à esquerda deixava o botão solto no canto de um cartão vazio.
+ */
 .cartao {
   width: 100%;
-  max-width: 30rem;
+  max-width: 22rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--e4);
+  text-align: center;
   background: var(--superficie);
   border: 1px solid var(--borda);
   border-radius: var(--r3);
-  padding: var(--e8);
+  padding: var(--e10) var(--e8);
   box-shadow: var(--sombra-forte);
-}
-
-.marca {
-  display: flex;
-  align-items: center;
-  gap: var(--e3);
-  margin-bottom: var(--e4);
 }
 
 .nome {
   font-size: var(--t-xl);
   letter-spacing: -0.02em;
+  margin-top: calc(var(--e2) * -1);
 }
 
-.chamada {
-  color: var(--texto-suave);
-  margin-bottom: var(--e5);
-}
-
-.promessas {
-  list-style: none;
-  margin: 0 0 var(--e6);
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--e3);
-  font-size: var(--t-sm);
-  color: var(--texto-suave);
-}
-
-/*
- * O marcador é o nó de commit da marca, em âmbar — a mesma unidade atômica
- * que o desenho usa. É a única cor quente da tela junto com o botão.
- */
-.promessas li {
-  padding-left: var(--e5);
-  position: relative;
-}
-
-.promessas li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0.55em;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: var(--r-pilula);
-  background: var(--acao);
-}
-
-.promessas strong {
-  color: var(--texto);
-  font-weight: 600;
+/* O recado de erro ocupa a largura toda; o resto se centra. */
+.cartao > p[role="alert"] {
+  align-self: stretch;
+  margin-bottom: 0;
+  text-align: left;
 }
 
 .rodape {
   color: var(--texto-fraco);
   font-size: var(--t-xs);
-  margin-top: var(--e4);
+  max-width: 26ch;
 }
 
 @media (max-width: 30rem) {
   .cartao {
-    padding: var(--e5);
+    padding: var(--e8) var(--e5);
   }
   .canto {
     top: var(--e3);

@@ -25,13 +25,24 @@ export const metadata: Metadata = {
 };
 
 const COOKIE_TEMA = "commitpost_tema";
+const COOKIE_LATERAL = "commitpost_lateral";
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const escolhido = (await cookies()).get(COOKIE_TEMA)?.value;
+  const jar = await cookies();
+
+  const escolhido = jar.get(COOKIE_TEMA)?.value;
   const tema = escolhido === "claro" || escolhido === "escuro" ? escolhido : undefined;
 
+  // A lateral recolhida também sai do servidor, pelo mesmo motivo do tema: sem
+  // isso ela nasceria aberta e pularia para recolhida depois da hidratação.
+  const lateral = jar.get(COOKIE_LATERAL)?.value === "recolhida" ? "recolhida" : undefined;
+
   return (
-    <html lang="pt-BR" {...(tema === undefined ? {} : { "data-tema": tema })}>
+    <html
+      lang="pt-BR"
+      {...(tema === undefined ? {} : { "data-tema": tema })}
+      {...(lateral === undefined ? {} : { "data-lateral": lateral })}
+    >
       <body>{children}</body>
     </html>
   );

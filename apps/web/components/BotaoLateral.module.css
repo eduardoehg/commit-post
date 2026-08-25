@@ -1,0 +1,31 @@
+.botao {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--borda);
+  border-radius: var(--r1);
+  background: var(--superficie);
+  color: var(--texto-suave);
+  transition: color var(--transicao), border-color var(--transicao);
+}
+
+.botao:hover {
+  color: var(--texto);
+  border-color: var(--borda-forte);
+}
+
+/* Recolhida, o traço vertical do ícone vai para o outro lado. */
+:root[data-lateral="recolhida"] .botao svg {
+  transform: scaleX(-1);
+}
+
+/*
+ * Em tela estreita a lateral já é uma barra de ícones no topo: recolher não
+ * teria o que recolher, e o botão só ocuparia espaço.
+ */
+@media (max-width: 52rem) {
+  .botao {
+    display: none;
+  }
+}

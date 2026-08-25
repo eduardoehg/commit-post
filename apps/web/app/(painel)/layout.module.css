@@ -165,3 +165,80 @@
     padding: var(--e6) var(--e4) var(--e10);
   }
 }
+
+/* --- Topo da lateral e estado recolhido -------------------------------- */
+
+.topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e2);
+  padding: 0 var(--e5);
+}
+
+.nomeMarca {
+  white-space: nowrap;
+}
+
+.iconeSair {
+  display: none;
+}
+
+/*
+ * Recolhida: sobra a trilha de ícones. Os rótulos somem dos olhos e continuam
+ * no HTML — quem usa leitor de tela lê a navegação inteira do mesmo jeito.
+ */
+@media (min-width: 52.0625rem) {
+  :root[data-lateral="recolhida"] .casca {
+    grid-template-columns: 4rem;
+  }
+
+  :root[data-lateral="recolhida"] .lateral {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  :root[data-lateral="recolhida"] .topo {
+    flex-direction: column;
+    gap: var(--e3);
+    padding: 0 var(--e2);
+  }
+
+  :root[data-lateral="recolhida"] .nomeMarca,
+  :root[data-lateral="recolhida"] .usuario,
+  :root[data-lateral="recolhida"] .textoSair {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  :root[data-lateral="recolhida"] .iconeSair {
+    display: block;
+  }
+
+  :root[data-lateral="recolhida"] .marca {
+    justify-content: center;
+    padding: 0;
+  }
+
+  :root[data-lateral="recolhida"] .rodape {
+    padding: var(--e4) var(--e2) 0;
+    align-items: center;
+  }
+
+  :root[data-lateral="recolhida"] .acoesRodape {
+    flex-direction: column;
+  }
+
+  :root[data-lateral="recolhida"] .sair {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+  }
+}

@@ -17,6 +17,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { AlternadorTema } from "@/components/AlternadorTema";
+import { BotaoLateral } from "@/components/BotaoLateral";
 import { Marca } from "@/components/Marca";
 import { Navegacao, type ItemNav } from "@/components/Navegacao";
 import { carregarContexto } from "@/lib/painel";
@@ -48,10 +49,13 @@ export default async function LayoutPainel({ children }: { children: ReactNode }
   return (
     <div className={estilos.casca}>
       <aside className={estilos.lateral}>
-        <Link href="/inicio" className={estilos.marca}>
-          <Marca tamanho={26} />
-          <span>CommitPost</span>
-        </Link>
+        <div className={estilos.topo}>
+          <Link href="/inicio" className={estilos.marca}>
+            <Marca tamanho={26} />
+            <span className={estilos.nomeMarca}>CommitPost</span>
+          </Link>
+          <BotaoLateral />
+        </div>
 
         <Navegacao itens={itens} />
 
@@ -64,8 +68,22 @@ export default async function LayoutPainel({ children }: { children: ReactNode }
           <div className={estilos.acoesRodape}>
             <AlternadorTema />
             <form action="/api/auth/logout" method="post">
-              <button type="submit" className={estilos.sair}>
-                Sair
+              <button type="submit" className={estilos.sair} title="Sair">
+                <span className={estilos.textoSair}>Sair</span>
+                <svg
+                  className={estilos.iconeSair}
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M9 20H5.5A1.5 1.5 0 0 1 4 18.5v-13A1.5 1.5 0 0 1 5.5 4H9M15 16l4-4-4-4M19 12H9" />
+                </svg>
               </button>
             </form>
           </div>
@@ -73,9 +91,7 @@ export default async function LayoutPainel({ children }: { children: ReactNode }
       </aside>
 
       <div className={estilos.corpo}>
-        {resumo.ready && pendentes.length === 0 ? null : (
-          <FaixaPendencia quantos={pendentes.length} />
-        )}
+        <FaixaPendencia quantos={pendentes.length} avisos={resumo.avisos} />
         <main className={estilos.conteudo}>{children}</main>
       </div>
     </div>
@@ -88,17 +104,32 @@ export default async function LayoutPainel({ children }: { children: ReactNode }
  * Fica fora do `<main>` de propósito: ela vale para a aplicação inteira, não
  * para a tela que está aberta.
  */
-function FaixaPendencia({ quantos }: { quantos: number }) {
-  if (quantos === 0) return null;
+function FaixaPendencia({ quantos, avisos }: { quantos: number; avisos: readonly string[] }) {
+  if (quantos > 0) {
+    return (
+      <div className={estilos.faixa} role="status">
+        <span>
+          {quantos === 1
+            ? "Falta uma conexão obrigatória — o sistema não gera posts sem ela."
+            : `Faltam ${String(quantos)} conexões obrigatórias — o sistema não gera posts sem elas.`}
+        </span>
+        <Link href="/onboarding" className={estilos.faixaLink}>
+          Resolver
+        </Link>
+      </div>
+    );
+  }
+
+  // Configurado, mas com algo que faz o ciclo trabalhar em vão — os e-mails de
+  // autor, por exemplo. Não é passo, e por isso aponta para Conexões e não
+  // para a introdução.
+  const primeiro = avisos[0];
+  if (primeiro === undefined) return null;
 
   return (
     <div className={estilos.faixa} role="status">
-      <span>
-        {quantos === 1
-          ? "Falta uma conexão obrigatória — o sistema não gera posts sem ela."
-          : `Faltam ${String(quantos)} conexões obrigatórias — o sistema não gera posts sem elas.`}
-      </span>
-      <Link href="/onboarding" className={estilos.faixaLink}>
+      <span>{primeiro}</span>
+      <Link href="/conexoes" className={estilos.faixaLink}>
         Resolver
       </Link>
     </div>

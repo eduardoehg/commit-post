@@ -1,17 +1,17 @@
 /**
- * Instalações do GitHub e e-mails de autor.
+ * A conexão com o GitHub, e nada mais.
  *
- * Os dois na mesma seção porque vêm da mesma conta e um sem o outro coleta
- * zero commits: é por e-mail de autor que o sistema reconhece um commit como
- * seu. Separá-los fazia o dev se perguntar o que um tinha a ver com o outro.
+ * Os e-mails de autor moravam aqui e saíram: eles chegam sozinhos no login e
+ * quase nunca precisam de atenção, mas apareciam como uma segunda tarefa
+ * dentro do mesmo card — e quem estava só tentando conectar uma conta não
+ * entendia o que uma coisa tinha a ver com a outra.
  *
- * Esta seção é renderizada em dois lugares — na introdução, dentro do passo, e
- * em Conexões, solta. É por isso que ela mora aqui e não dentro de uma página:
- * duas cópias divergiriam no primeiro ajuste.
+ * Agora vivem em `SecaoEmails`, fora da introdução. Quando estão vazios, o
+ * painel avisa — ver `avisos` em `computeOnboarding`.
  */
 
 import { adicionarEmail, removerEmail } from "@/app/(painel)/acoes";
-import { Acao, Botao, Campo, Item, LinhaForm, Lista, Nota, Selo, Vazio } from "../ui";
+import { Acao, Botao, Campo, Item, LinhaForm, Lista, Nota, Recado, Selo, Vazio } from "../ui";
 import estilos from "./secoes.module.css";
 
 export interface Instalacao {
@@ -27,16 +27,12 @@ export interface EmailAutor {
   source: string;
 }
 
-export function SecaoGithub({
-  instalacoes,
-  emails,
-}: {
-  instalacoes: readonly Instalacao[];
-  emails: readonly EmailAutor[];
-}) {
+export function SecaoGithub({ instalacoes }: { instalacoes: readonly Instalacao[] }) {
+  const vazio = instalacoes.length === 0;
+
   return (
     <>
-      {instalacoes.length === 0 ? (
+      {vazio ? (
         <Vazio>Nenhuma conta conectada ainda.</Vazio>
       ) : (
         <Lista>
@@ -55,27 +51,41 @@ export function SecaoGithub({
       )}
 
       <div className={estilos.acoes}>
-        <Acao href="/api/auth/github/install" tom={instalacoes.length === 0 ? "principal" : "discreto"}>
-          {instalacoes.length === 0 ? "Instalar o CommitPost" : "Instalar em outra conta"}
+        <Acao href="/api/auth/github/install" tom={vazio ? "principal" : "discreto"}>
+          {vazio ? "Conectar o GitHub" : "Conectar outra conta"}
         </Acao>
-        <Acao href="/api/auth/github/login" tom="discreto">
-          Já instalei, atualizar
-        </Acao>
+        {!vazio && (
+          <Acao href="/api/auth/github/login" tom="discreto">
+            Atualizar
+          </Acao>
+        )}
       </div>
 
       <Nota>
-        Se os repositórios são de uma organização, quem instala precisa ser admin dela.
-        Uma instalação cobre todos os repos que você escolher.
+        {vazio
+          ? "Você escolhe quais repositórios liberar. O acesso é de leitura e expira em uma hora a cada uso."
+          : "Instalou em outra conta agora? Use Atualizar para o sistema enxergar."}
       </Nota>
+    </>
+  );
+}
 
-      <h3 className={estilos.subtitulo}>Seus e-mails de autor</h3>
-      <p className={estilos.subdescricao}>
-        É por eles que o sistema reconhece um commit como seu. O do trabalho costuma
-        ser diferente do pessoal.
-      </p>
-
+/**
+ * Os e-mails que identificam um commit como seu.
+ *
+ * Fora da introdução de propósito: chegam preenchidos do GitHub e o dev só
+ * precisa mexer aqui se assina commits de trabalho com um endereço que não
+ * está na conta dele. É a exceção, e o lugar da exceção não é o caminho de
+ * quem está começando.
+ */
+export function SecaoEmails({ emails }: { emails: readonly EmailAutor[] }) {
+  return (
+    <>
       {emails.length === 0 ? (
-        <Vazio>Nenhum e-mail confirmado — nenhum commit seria reconhecido como seu.</Vazio>
+        <Recado tom="aviso">
+          Sem nenhum e-mail aqui, a coleta roda e não reconhece nenhum commit como seu.
+          Acrescente ao menos um.
+        </Recado>
       ) : (
         <Lista>
           {emails.map((e) => (
@@ -104,14 +114,15 @@ export function SecaoGithub({
             required
             aria-label="E-mail de autor"
           />
-          <Botao type="submit" tom="discreto">
+          <Botao type="submit" tom={emails.length === 0 ? "principal" : "discreto"}>
             Adicionar
           </Botao>
         </LinhaForm>
       </form>
 
       <Nota>
-        Confira com <code>git config user.email</code> na máquina onde você trabalha.
+        Confira com <code>git config user.email</code> na máquina onde você trabalha. Se
+        o e-mail do trabalho não está na sua conta do GitHub, ele precisa entrar aqui.
       </Nota>
     </>
   );

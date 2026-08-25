@@ -109,6 +109,17 @@ export interface OnboardingSummary {
   ready: boolean;
   /** O que a tela deve destacar. Null quando não sobrou nada a fazer. */
   next: StepId | null;
+  /**
+   * Problemas que NÃO impedem o dev de configurar, mas fazem o sistema
+   * trabalhar em vão.
+   *
+   * Existem porque nem todo defeito é um passo. Os e-mails de autor, por
+   * exemplo, chegam sozinhos do GitHub e quase nunca precisam de atenção —
+   * virar um passo obrigatório por causa da exceção fazia todo mundo pagar
+   * pelo caso raro. Mas se a lista estiver vazia, a coleta varre tudo e
+   * reconhece zero commits, e isso não pode acontecer em silêncio.
+   */
+  avisos: string[];
 }
 
 /**
@@ -131,11 +142,13 @@ export function computeOnboarding(state: OnboardingState): OnboardingSummary {
       id: "github",
       title: "Conectar o GitHub",
       summary:
-        "Instale o CommitPost nas contas cujos repositórios devem virar post e " +
-        "confirme por quais e-mails você assina seus commits.",
-      // Instalação sem e-mail de autor coleta zero commits: é por e-mail que o
-      // sistema sabe o que é seu. Um sem o outro não é meio caminho, é nada.
-      done: state.installationCount > 0 && state.emailCount > 0,
+        "Instale o CommitPost nas contas cujos repositórios devem virar post. " +
+        "O acesso é de leitura e expira em uma hora a cada uso.",
+      // Só a instalação. Os e-mails de autor eram exigidos aqui e saíram: eles
+      // chegam sozinhos do GitHub no login, e pedir confirmação de algo que já
+      // está certo fazia o passo parecer duas tarefas em vez de uma. Quando
+      // falham, viram aviso — ver `avisos`.
+      done: state.installationCount > 0,
       required: true,
       available: true,
     },
@@ -179,5 +192,15 @@ export function computeOnboarding(state: OnboardingState): OnboardingSummary {
     steps.find((s) => !s.done && s.available)?.id ??
     null;
 
-  return { steps, ready, next };
+  const avisos: string[] = [];
+
+  // Só depois de conectar: cobrar e-mail de autor de quem nem instalou o App
+  // seria reclamar da segunda etapa antes da primeira.
+  if (state.installationCount > 0 && state.emailCount === 0) {
+    avisos.push(
+      "Nenhum e-mail de autor cadastrado — a coleta roda e não reconhece nenhum commit como seu.",
+    );
+  }
+
+  return { steps, ready, next, avisos };
 }

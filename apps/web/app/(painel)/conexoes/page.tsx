@@ -8,7 +8,7 @@
 
 import type { Metadata } from "next";
 import { Cartao, Recado, TituloPagina } from "@/components/ui";
-import { SecaoGithub } from "@/components/secoes/Github";
+import { SecaoEmails, SecaoGithub } from "@/components/secoes/Github";
 import { SecaoColaboracoes, SecaoLinkedIn, SecaoTelegram } from "@/components/secoes/Conexoes";
 import { conexoesDe, emailsDe, instalacoesDe, linkTelegramDe } from "@/lib/dados";
 import { carregarContexto } from "@/lib/painel";
@@ -48,9 +48,16 @@ export default async function PaginaConexoes({
 
       <Cartao
         titulo="GitHub"
-        descricao="As contas cujos repositórios devem virar post, e por quais e-mails você assina seus commits."
+        descricao="As contas cujos repositórios devem virar post."
       >
-        <SecaoGithub instalacoes={instalacoes} emails={emails} />
+        <SecaoGithub instalacoes={instalacoes} />
+      </Cartao>
+
+      <Cartao
+        titulo="E-mails de autor"
+        descricao="É por eles que o sistema reconhece um commit como seu. Chegam sozinhos da sua conta do GitHub — só mexa aqui se você assina commits de trabalho com um endereço que não está lá."
+      >
+        <SecaoEmails emails={emails} />
       </Cartao>
 
       <Cartao

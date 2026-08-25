@@ -99,3 +99,22 @@
     font-size: 0.7rem;
   }
 }
+
+/* Lateral recolhida: só os ícones, centrados. */
+:root[data-lateral="recolhida"] .item {
+  justify-content: center;
+  padding: var(--e2);
+}
+
+@media (min-width: 52.0625rem) {
+  :root[data-lateral="recolhida"] .rotulo,
+  :root[data-lateral="recolhida"] .distintivo {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

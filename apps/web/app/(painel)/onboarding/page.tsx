@@ -23,7 +23,7 @@ import {
   SecaoLinkedIn,
   SecaoTelegram,
 } from "@/components/secoes/Conexoes";
-import { conexoesDe, emailsDe, instalacoesDe, linkTelegramDe } from "@/lib/dados";
+import { conexoesDe, instalacoesDe, linkTelegramDe } from "@/lib/dados";
 import { carregarContexto } from "@/lib/painel";
 import { primeiroParam } from "@/lib/params";
 import estilos from "./onboarding.module.css";
@@ -39,9 +39,8 @@ export default async function PaginaIntroducao({
   const { user, resumo } = await carregarContexto();
   const params = await searchParams;
 
-  const [instalacoes, emails, conexoes, telegram] = await Promise.all([
+  const [instalacoes, conexoes, telegram] = await Promise.all([
     instalacoesDe(user.id),
-    emailsDe(user.id),
     conexoesDe(user.id),
     linkTelegramDe(user.id, user.telegramChatId !== null),
   ]);
@@ -73,7 +72,7 @@ export default async function PaginaIntroducao({
       <ol className={estilos.passos}>
         {resumo.steps.map((passo, indice) => (
           <Passo key={passo.id} passo={passo} numero={indice + 1} destacado={passo.id === resumo.next}>
-            {passo.id === "github" && <SecaoGithub instalacoes={instalacoes} emails={emails} />}
+            {passo.id === "github" && <SecaoGithub instalacoes={instalacoes} />}
             {passo.id === "collaborations" && (
               <SecaoColaboracoes concedido={passo.done} disponivel={passo.available} />
             )}

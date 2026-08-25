@@ -105,18 +105,28 @@ describe("computeOnboarding", () => {
 
   it.each([
     ["instalação", { installationCount: 0 }],
-    ["e-mail de autor", { emailCount: 0 }],
     ["telegram", { telegramLinked: false }],
   ] as const)("segura o dev quando falta %s", (_nome, falta) => {
     expect(computeOnboarding({ ...COMPLETO, ...falta }).ready).toBe(false);
   });
 
-  it("exige instalação E e-mail no mesmo passo", () => {
-    // Instalação sem e-mail de autor coleta zero commits, porque é por e-mail
-    // que o sistema sabe o que é seu. Um sem o outro não é meio caminho.
-    expect(feito({ ...ZERADO, installationCount: 1 }, "github")).toBe(false);
-    expect(feito({ ...ZERADO, emailCount: 1 }, "github")).toBe(false);
-    expect(feito({ ...ZERADO, installationCount: 1, emailCount: 1 }, "github")).toBe(true);
+  it("e-mail de autor NÃO é passo — ele chega sozinho do GitHub", () => {
+    // Pedir confirmação de algo que já está certo fazia o passo parecer duas
+    // tarefas em vez de uma. Quando falha, vira aviso.
+    expect(feito({ ...ZERADO, installationCount: 1 }, "github")).toBe(true);
+    expect(computeOnboarding({ ...COMPLETO, emailCount: 0 }).ready).toBe(true);
+  });
+
+  it("avisa quando conectou e não reconhece commit nenhum", () => {
+    // Sem e-mail de autor a coleta varre tudo e não reconhece nada. Não impede
+    // configurar, mas não pode acontecer em silêncio.
+    expect(computeOnboarding({ ...COMPLETO, emailCount: 0 }).avisos).toHaveLength(1);
+    expect(computeOnboarding(COMPLETO).avisos).toEqual([]);
+  });
+
+  it("não cobra e-mail de quem nem conectou o GitHub", () => {
+    // Reclamar da segunda etapa antes da primeira só faz barulho.
+    expect(computeOnboarding(ZERADO).avisos).toEqual([]);
   });
 
   it("não tem passo de denylist", () => {
