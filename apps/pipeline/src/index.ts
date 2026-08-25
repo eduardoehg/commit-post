@@ -86,6 +86,8 @@ async function processarDev(
     appPrivateKey: env.GITHUB_APP_PRIVATE_KEY,
     encryptionKey: env.TOKEN_ENCRYPTION_KEY,
     extraDeniedTerms: env.REDACT_DENIED_TERMS,
+    oauthClientId: env.GITHUB_OAUTH_CLIENT_ID,
+    oauthClientSecret: env.GITHUB_OAUTH_CLIENT_SECRET,
     ensaio,
   });
 

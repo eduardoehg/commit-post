@@ -20,7 +20,7 @@ import {
   fetchViewer,
   type TokenExchange,
 } from "@commitpost/core/github";
-import { GITHUB_COLLAB_PROVIDER } from "@/lib/providers";
+import { GITHUB_COLLAB_PROVIDER, cifrarOpcional } from "@/lib/providers";
 import { proposeTermsFromCollaborations } from "@/lib/github-sync";
 import { finishOAuth } from "@/lib/oauth";
 import { absoluteUrl, backTo, db, env, requireUser } from "@/lib/runtime";
@@ -75,6 +75,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       userId: user.id,
       provider: GITHUB_COLLAB_PROVIDER,
       accessTokenEncrypted: encrypted,
+      // O refresh token é o que evita o dev ter que reautorizar de tempos em
+      // tempos. Ele estava sendo descartado aqui, e o sintoma era o acesso
+      // morrer em oito horas sem ninguém entender por quê.
+      refreshTokenEncrypted: cifrarOpcional(exchanged.refreshToken, configuration.TOKEN_ENCRYPTION_KEY),
       scope: exchanged.scope,
       expiresAt: exchanged.expiresAt,
       subject: String(grantee.id),
@@ -83,6 +87,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       target: [oauthTokens.userId, oauthTokens.provider],
       set: {
         accessTokenEncrypted: encrypted,
+        refreshTokenEncrypted: cifrarOpcional(exchanged.refreshToken, configuration.TOKEN_ENCRYPTION_KEY),
         scope: exchanged.scope,
         expiresAt: exchanged.expiresAt,
         subject: String(grantee.id),

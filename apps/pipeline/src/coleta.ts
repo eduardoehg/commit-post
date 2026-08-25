@@ -18,10 +18,11 @@ import {
   fetchCollaboratorRepos,
   listCommits,
   listInstallationRepositories,
+  refreshUserToken,
   GitHubCollectError,
   type RepoTarget,
 } from "@commitpost/core/github";
-import { decryptSecret } from "@commitpost/core/crypto";
+import { decryptSecret, encryptSecret } from "@commitpost/core/crypto";
 import {
   commits,
   deniedTerms,
@@ -47,6 +48,13 @@ export interface ColetaOptions {
   encryptionKey: string;
   /** Somados aos termos do dev. Vêm de REDACT_DENIED_TERMS. */
   extraDeniedTerms: readonly string[];
+  /**
+   * Credenciais do OAuth de colaborações, para RENOVAR o token quando ele
+   * vence. Sem elas o pipeline lê enquanto o token vale e para depois — que
+   * foi exatamente o que aconteceu na primeira semana.
+   */
+  oauthClientId?: string | undefined;
+  oauthClientSecret?: string | undefined;
   /**
    * Ensaio: não grava nada e devolve TUDO que encontrou, inclusive o que já
    * está no banco.
@@ -182,7 +190,7 @@ async function descobrirAlvos(options: ColetaOptions, avisos: string[]): Promise
     }
   }
 
-  const colaboracao = await tokenDeColaboracao(options);
+  const colaboracao = await tokenDeColaboracao(options, avisos);
   if (colaboracao !== null) {
     try {
       for (const repo of await fetchCollaboratorRepos(colaboracao)) {
@@ -226,21 +234,90 @@ async function descobrirAlvos(options: ColetaOptions, avisos: string[]): Promise
   return alvos;
 }
 
-async function tokenDeColaboracao(options: ColetaOptions): Promise<string | null> {
+/**
+ * Folga antes do vencimento.
+ *
+ * Um token que vence no meio da execução é pior do que um já vencido: metade
+ * dos repositórios entra e a outra metade some, e o log não deixa isso óbvio.
+ */
+const FOLGA_MS = 10 * 60 * 1000;
+
+/**
+ * O token de colaboração, renovado se precisar.
+ *
+ * O GitHub devolve token de oito horas aqui — não "sem prazo", que era o que
+ * eu esperava de um OAuth clássico. Sem renovação, a coleta deixaria de
+ * enxergar os repositórios de colaboração de um dia para o outro, e o único
+ * sintoma seria o número de repos varridos caindo no log.
+ *
+ * A renovação acontece ANTES de qualquer leitura, e o par novo é gravado na
+ * mesma hora: o refresh token do GitHub é de uso único, e não gravar o novo
+ * transformaria a renovação num desligamento adiado.
+ */
+async function tokenDeColaboracao(
+  options: ColetaOptions,
+  avisos: string[],
+): Promise<string | null> {
   const linhas = await options.db
-    .select({ cifrado: oauthTokens.accessTokenEncrypted })
+    .select({
+      cifrado: oauthTokens.accessTokenEncrypted,
+      refreshCifrado: oauthTokens.refreshTokenEncrypted,
+      expiraEm: oauthTokens.expiresAt,
+    })
     .from(oauthTokens)
     .where(and(eq(oauthTokens.userId, options.userId), eq(oauthTokens.provider, COLLAB_PROVIDER)))
     .limit(1);
 
-  const cifrado = linhas[0]?.cifrado;
-  if (cifrado === undefined) return null;
+  const linha = linhas[0];
+  if (linha === undefined) return null;
 
+  let token: string;
   try {
-    return decryptSecret(cifrado, options.encryptionKey);
+    token = decryptSecret(linha.cifrado, options.encryptionKey);
   } catch {
     // Chave trocada. Não dá para distinguir disso de dado adulterado, e a ação
     // é a mesma: o dev reautoriza.
+    avisos.push("o acesso de colaboração não pôde ser decifrado — reautorize em Conexões");
+    return null;
+  }
+
+  const vencido =
+    linha.expiraEm !== null && linha.expiraEm.getTime() - FOLGA_MS <= Date.now();
+
+  if (!vencido) return token;
+
+  if (linha.refreshCifrado === null || options.oauthClientId === undefined) {
+    avisos.push("o acesso de colaboração venceu e não há como renovar — reautorize em Conexões");
+    return null;
+  }
+
+  try {
+    const renovado = await refreshUserToken({
+      clientId: options.oauthClientId,
+      clientSecret: options.oauthClientSecret ?? "",
+      refreshToken: decryptSecret(linha.refreshCifrado, options.encryptionKey),
+    });
+
+    await options.db
+      .update(oauthTokens)
+      .set({
+        accessTokenEncrypted: encryptSecret(renovado.accessToken, options.encryptionKey),
+        refreshTokenEncrypted:
+          renovado.refreshToken === null
+            ? null
+            : encryptSecret(renovado.refreshToken, options.encryptionKey),
+        expiresAt: renovado.expiresAt,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(eq(oauthTokens.userId, options.userId), eq(oauthTokens.provider, COLLAB_PROVIDER)),
+      );
+
+    return renovado.accessToken;
+  } catch (error) {
+    avisos.push(
+      `não foi possível renovar o acesso de colaboração (${error instanceof Error ? error.message : "motivo desconhecido"})`,
+    );
     return null;
   }
 }

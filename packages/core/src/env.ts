@@ -104,6 +104,14 @@ const pipelineSchema = z.object({
   GITHUB_APP_ID: z.string().regex(/^\d+$/, "é o App ID numérico, não o Client ID"),
   GITHUB_APP_PRIVATE_KEY: pemPrivateKey,
 
+  /**
+   * OAuth de colaborações. Opcional, e só para RENOVAR o token que o dev
+   * concedeu — o pipeline nunca inicia uma concessão, isso é do app web.
+   * Faltando, um token vencido vira aviso em vez de renovação.
+   */
+  GITHUB_OAUTH_CLIENT_ID: optional(z.string().min(1)),
+  GITHUB_OAUTH_CLIENT_SECRET: optional(z.string().min(1)),
+
   GITHUB_LOOKBACK_DAYS: positiveInt.default("7"),
   /**
    * Termos proibidos que valem para TODO MUNDO, somados aos que cada dev tem

@@ -10,6 +10,7 @@ import {
   fetchViewerInstallations,
   installUrl,
   noreplyEmail,
+  refreshUserToken,
 } from "./app";
 
 const { privateKey } = generateKeyPairSync("rsa", {
@@ -174,5 +175,33 @@ describe("noreplyEmail", () => {
     expect(
       noreplyEmail({ id: 12345, login: "EduardoEHG", name: null, avatarUrl: null }),
     ).toBe("12345+eduardoehg@users.noreply.github.com");
+  });
+});
+
+describe("refreshUserToken", () => {
+  const options = { clientId: "Ov23", clientSecret: "segredo", refreshToken: "ghr_x" };
+
+  it("devolve o par novo, incluindo o refresh token", async () => {
+    // O refresh do GitHub é de uso único: cada renovação devolve um novo e o
+    // anterior morre. Não propagar o novo transforma a renovação num
+    // desligamento adiado.
+    mockFetch({ access_token: "gho_novo", refresh_token: "ghr_novo", expires_in: 28800 });
+    const r = await refreshUserToken(options);
+
+    expect(r.accessToken).toBe("gho_novo");
+    expect(r.refreshToken).toBe("ghr_novo");
+    expect(r.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it("diz que o dev precisa autorizar de novo quando o refresh também venceu", async () => {
+    // É o único caso em que não há saída automática, e a mensagem precisa
+    // dizer isso — senão o log fica com "falhou" e ninguém sabe o que fazer.
+    mockFetch({ error: "bad_refresh_token" });
+    await expect(refreshUserToken(options)).rejects.toThrow(/autorizar de novo/);
+  });
+
+  it("recusa resposta sem token em vez de seguir com undefined", async () => {
+    mockFetch({ error: "unknown" });
+    await expect(refreshUserToken(options)).rejects.toThrow(GitHubAuthError);
   });
 });

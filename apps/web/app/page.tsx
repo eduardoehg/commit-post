@@ -47,7 +47,7 @@ export default async function Entrada({
         </Acao>
 
         <p className={estilos.rodape}>
-          O acesso é liberado por quem administra o sistema. Não há cadastro nem senha.
+          O acesso é liberado por quem administra o sistema!
         </p>
       </div>
     </main>

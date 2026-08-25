@@ -232,6 +232,63 @@ export async function exchangeCodeForToken(options: {
   };
 }
 
+/**
+ * Troca o refresh token por um par novo.
+ *
+ * Existe porque o token de colaboração expira — o GitHub devolveu oito horas,
+ * não "nunca", que era o que eu esperava de um OAuth clássico. Sem renovação,
+ * a coleta silenciosamente deixaria de enxergar os repositórios de colaboração
+ * de um dia para o outro, e a única pista seria o número de repos varridos
+ * caindo no log.
+ *
+ * O refresh token é de uso único: cada renovação devolve um novo, e o anterior
+ * morre. Quem chama PRECISA gravar o novo — perder essa gravação transforma a
+ * renovação num desligamento adiado.
+ */
+export async function refreshUserToken(options: {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+}): Promise<TokenExchange> {
+  const response = await fetch(`${OAUTH}/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      grant_type: "refresh_token",
+      refresh_token: options.refreshToken,
+      client_id: options.clientId,
+      client_secret: options.clientSecret,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new GitHubAuthError(`Renovação falhou com status ${String(response.status)}.`);
+  }
+
+  const body = (await response.json()) as {
+    access_token?: string;
+    scope?: string;
+    expires_in?: number;
+    refresh_token?: string;
+    error?: string;
+  };
+
+  if (body.access_token === undefined) {
+    throw new GitHubAuthError(
+      body.error === "bad_refresh_token"
+        ? "A renovação expirou. O dev precisa autorizar de novo."
+        : `O GitHub recusou a renovação (${body.error ?? "motivo não informado"}).`,
+    );
+  }
+
+  return {
+    accessToken: body.access_token,
+    scope: body.scope ?? null,
+    expiresAt: body.expires_in === undefined ? null : new Date(Date.now() + body.expires_in * 1000),
+    refreshToken: body.refresh_token ?? null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Leituras com token de usuário
 // ---------------------------------------------------------------------------

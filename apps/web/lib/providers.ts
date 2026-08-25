@@ -1,3 +1,5 @@
+import { encryptSecret } from "@commitpost/core/crypto";
+
 /**
  * Nomes usados na coluna `provider` de `oauth_tokens`.
  *
@@ -12,3 +14,8 @@
 export const GITHUB_COLLAB_PROVIDER = "github-collab";
 
 export const LINKEDIN_PROVIDER = "linkedin";
+
+/** Cifra quando existe. Token ausente vira coluna nula, não string vazia. */
+export function cifrarOpcional(valor: string | null, chave: string): string | null {
+  return valor === null ? null : encryptSecret(valor, chave);
+}
