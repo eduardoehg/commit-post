@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   API_VERSION,
+  API_VERSION_LIFETIME_MONTHS,
   REQUIRED_SCOPES,
   TOKEN_EXPIRY_WARNING_DAYS,
   authorizeUrl,
   avaliarExpiracao,
+  avaliarVersaoApi,
   memberUrn,
   publishPost,
   textoExpiracao,
+  textoVersaoApi,
 } from "./index";
 
 const AGORA = new Date("2026-08-25T12:00:00Z");
@@ -171,5 +174,74 @@ describe("publishPost", () => {
   it("carrega o status para quem chama distinguir token vencido", async () => {
     responder(401, {}, "invalid token");
     await expect(publishPost(base)).rejects.toMatchObject({ status: 401 });
+  });
+});
+
+describe("avaliarVersaoApi", () => {
+  /**
+   * O que se testa aqui é o ADIANTAMENTO do aviso, não a aritmética.
+   *
+   * O 426 chega no pior momento possível: na hora de publicar um post que
+   * alguém já leu e aprovou. Foi assim que a primeira publicação real falhou,
+   * com `202508` já vencida. Estes testes existem para essa falha ser
+   * anunciada meses antes, não descoberta pelo dev.
+   */
+
+  it("não avisa nada sobre uma versão recém-adotada", () => {
+    // Aviso que aparece o ano inteiro é aviso que ninguém lê.
+    const estado = avaliarVersaoApi(new Date("2026-09-15T00:00:00Z"), "202608");
+
+    expect(estado.precisaAvisar).toBe(false);
+    expect(estado.vencida).toBe(false);
+  });
+
+  it("avisa ANTES de a versão morrer, não depois", () => {
+    // A trava principal: com um mês pela frente, `vencida` ainda é falso e o
+    // aviso já saiu. Fossem os dois simultâneos, o aviso seria um obituário.
+    const estado = avaliarVersaoApi(new Date("2027-07-15T00:00:00Z"), "202608");
+
+    expect(estado.precisaAvisar).toBe(true);
+    expect(estado.vencida).toBe(false);
+  });
+
+  it("dá a versão por vencida ao completar o prazo do LinkedIn", () => {
+    const estado = avaliarVersaoApi(new Date("2027-08-15T00:00:00Z"), "202608");
+
+    expect(estado.vencida).toBe(true);
+    expect(estado.mesesRestantes).toBe(0);
+  });
+
+  it("conta meses atravessando a virada do ano", () => {
+    // Onde um off-by-12 se esconde: novembro para janeiro são dois meses, e
+    // uma conta que ignore o ano devolve nove meses a mais de folga — tempo
+    // suficiente para o aviso chegar depois do 426.
+    expect(avaliarVersaoApi(new Date("2026-01-15T00:00:00Z"), "202511").mesesRestantes).toBe(
+      API_VERSION_LIFETIME_MONTHS - 2,
+    );
+  });
+
+  it("a versão em uso ainda não está vencida hoje", () => {
+    // Não é tautologia: falha se alguém subir API_VERSION para um valor com
+    // mais de um ano, que é exatamente o erro que já aconteceu uma vez.
+    expect(avaliarVersaoApi().vencida).toBe(false);
+  });
+});
+
+describe("textoVersaoApi", () => {
+  it("diz onde mexer, porque quem lê é quem edita o código", () => {
+    // O dev não conserta isto pelo painel. Sem o caminho do arquivo, o aviso
+    // vira "algo vai quebrar" sem dizer o quê fazer.
+    const texto = textoVersaoApi(avaliarVersaoApi(new Date("2027-08-15T00:00:00Z"), "202608"));
+
+    expect(texto).toContain("API_VERSION");
+    expect(texto).toContain("202608");
+  });
+
+  it("distingue o que ainda vai vencer do que já venceu", () => {
+    const aVencer = textoVersaoApi(avaliarVersaoApi(new Date("2027-07-15T00:00:00Z"), "202608"));
+    const vencida = textoVersaoApi(avaliarVersaoApi(new Date("2027-09-15T00:00:00Z"), "202608"));
+
+    expect(aVencer).toMatch(/vence em/);
+    expect(vencida).toMatch(/desligada/);
   });
 });

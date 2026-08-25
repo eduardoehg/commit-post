@@ -226,9 +226,86 @@ export function textoExpiracao(estado: EstadoExpiracao): string {
  * código — a forma do payload muda junto, e um número novo com o corpo antigo
  * falha de um jeito difícil de ler.
  *
- * Se o LinkedIn recusar com 426, é ESTE valor que precisa subir.
+ * Se o LinkedIn recusar com 426, é ESTE valor que precisa subir. Foi o que
+ * aconteceu na primeira publicação real: `202508` já tinha passado dos doze
+ * meses e o post não saiu.
+ *
+ * Para achar uma versão viva, mande um GET qualquer com o cabeçalho
+ * `LinkedIn-Version`: 426 `NONEXISTENT_VERSION` é versão morta, e QUALQUER
+ * outro status — 403 inclusive — significa que a versão foi aceita. Duas
+ * surpresas dessa varredura, que não estão na documentação:
+ *
+ *   - não existe uma versão por mês. `202512` nunca foi lançada, com `202511`
+ *     e `202601` vivas dos dois lados — contar meses para trás a partir de
+ *     hoje não devolve necessariamente um número válido;
+ *   - a janela é fechada nas duas pontas. Uma versão futura é tão recusada
+ *     quanto uma vencida, então "usar o mês que vem" não compra prazo.
  */
-export const API_VERSION = "202508";
+export const API_VERSION = "202608";
+
+/** Quanto tempo o LinkedIn mantém uma versão de pé, em meses. */
+export const API_VERSION_LIFETIME_MONTHS = 12;
+
+/**
+ * Antecedência do aviso ao operador.
+ *
+ * Dois meses porque quem conserta isto precisa mexer no código e publicar —
+ * não é um botão no painel, como reconectar o token. Avisar em cima da hora
+ * seria avisar depois que os posts já pararam.
+ */
+const API_VERSION_WARNING_MONTHS = 2;
+
+export interface EstadoVersao {
+  versao: string;
+  /** Aproximado: conta meses de calendário, que é a granularidade da versão. */
+  mesesRestantes: number;
+  vencida: boolean;
+  precisaAvisar: boolean;
+}
+
+/**
+ * Quanto falta para a versão da API ser desligada.
+ *
+ * Existe porque o 426 chega tarde demais: ele acontece na hora de publicar um
+ * post que alguém já aprovou. Pura e com o relógio injetado — é a única forma
+ * de testar o vencimento sem esperar um ano.
+ */
+export function avaliarVersaoApi(
+  agora: Date = new Date(),
+  versao: string = API_VERSION,
+): EstadoVersao {
+  const ano = Number(versao.slice(0, 4));
+  const mes = Number(versao.slice(4, 6));
+
+  const mesesDeUso =
+    (agora.getUTCFullYear() - ano) * 12 + (agora.getUTCMonth() + 1 - mes);
+  const mesesRestantes = API_VERSION_LIFETIME_MONTHS - mesesDeUso;
+
+  return {
+    versao,
+    mesesRestantes,
+    vencida: mesesRestantes <= 0,
+    precisaAvisar: mesesRestantes <= API_VERSION_WARNING_MONTHS,
+  };
+}
+
+/** O aviso que vai para o operador — o único que pode consertar isto. */
+export function textoVersaoApi(estado: EstadoVersao): string {
+  const onde = "API_VERSION em packages/core/src/linkedin/index.ts";
+
+  if (estado.vencida) {
+    return (
+      `A versão ${estado.versao} da API do LinkedIn passou dos ` +
+      `${String(API_VERSION_LIFETIME_MONTHS)} meses e provavelmente já foi desligada. ` +
+      `Publicar post vai falhar com 426 até subir ${onde}.`
+    );
+  }
+
+  return (
+    `A versão ${estado.versao} da API do LinkedIn vence em cerca de ` +
+    `${String(estado.mesesRestantes)} mês(es). Suba ${onde} antes disso.`
+  );
+}
 
 export interface PostPublicado {
   /** URN devolvido pelo LinkedIn, ex.: `urn:li:share:7123...`. */

@@ -11,8 +11,13 @@
  * está.
  */
 
-import { and, desc, eq, gt } from "drizzle-orm";
-import { avaliarExpiracao, textoExpiracao } from "@commitpost/core/linkedin";
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import {
+  avaliarExpiracao,
+  avaliarVersaoApi,
+  textoExpiracao,
+  textoVersaoApi,
+} from "@commitpost/core/linkedin";
 import { logs, oauthTokens, users, type Database } from "@commitpost/core/db";
 import { sendMessage } from "@commitpost/core/telegram";
 
@@ -20,6 +25,9 @@ const LINKEDIN_PROVIDER = "linkedin";
 
 /** Marca em `logs` que serve para não repetir o aviso a cada execução. */
 const FASE_AVISO = "aviso-expiracao";
+
+/** A mesma ideia, para o aviso que é do operador e não de um dev. */
+const FASE_VERSAO = "aviso-versao-api";
 
 /**
  * Janela de silêncio entre dois avisos iguais.
@@ -85,6 +93,55 @@ export async function avisarExpiracao(
     level: estado.vencido ? "error" : "warn",
     message: textoExpiracao(estado),
     meta: { diasRestantes: estado.diasRestantes, provider: LINKEDIN_PROVIDER },
+  });
+
+  return "enviado";
+}
+
+/**
+ * A versão da API do LinkedIn envelhecendo.
+ *
+ * Vai para o OPERADOR, não para os devs: consertar isto é subir uma constante
+ * e publicar de novo. Um dev que recebesse esta mensagem não teria o que fazer
+ * com ela, e aviso sem ação possível é o tipo que ensina a ignorar avisos.
+ *
+ * Uma vez por execução, não uma por dev — a versão é do sistema inteiro.
+ */
+export async function avisarVersaoApi(
+  db: Database,
+  chatOperador: string | undefined,
+  botToken: string,
+  agora: Date = new Date(),
+): Promise<ResultadoAviso> {
+  const estado = avaliarVersaoApi(agora);
+  if (!estado.precisaAvisar) return "nada-a-avisar";
+  if (chatOperador === undefined) return "sem-telegram";
+
+  // `userId` nulo é o que distingue o aviso do operador dos avisos de dev, e
+  // por isso a busca precisa do IS NULL: sem ele, o aviso de um dev qualquer
+  // silenciaria este.
+  const recentes = await db
+    .select({ id: logs.id })
+    .from(logs)
+    .where(
+      and(
+        isNull(logs.userId),
+        eq(logs.phase, FASE_VERSAO),
+        gt(logs.createdAt, new Date(agora.getTime() - SILENCIO_MS)),
+      ),
+    )
+    .orderBy(desc(logs.createdAt))
+    .limit(1);
+
+  if (recentes.length > 0) return "ja-avisado";
+
+  await sendMessage(botToken, chatOperador, textoVersaoApi(estado));
+
+  await db.insert(logs).values({
+    phase: FASE_VERSAO,
+    level: estado.vencida ? "error" : "warn",
+    message: textoVersaoApi(estado),
+    meta: { versao: estado.versao, mesesRestantes: estado.mesesRestantes },
   });
 
   return "enviado";

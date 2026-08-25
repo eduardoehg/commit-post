@@ -20,7 +20,7 @@ import { eq } from "drizzle-orm";
 import { coletarDoDev } from "./coleta";
 import { gerarEGravar } from "./geracao";
 import { enviarParaAprovacao } from "./envio";
-import { avisarExpiracao } from "./avisos";
+import { avisarExpiracao, avisarVersaoApi } from "./avisos";
 
 function log(mensagem: string): void {
   console.log(`[commitpost] ${mensagem}`);
@@ -56,6 +56,14 @@ async function main(): Promise<void> {
     }
 
     log(`${String(devs.length)} dev(s) ativo(s)`);
+
+    // Uma vez por ciclo, e antes dos devs: a versão da API é do sistema
+    // inteiro, e o 426 dela só apareceria na hora de publicar um post que
+    // alguém já tinha aprovado.
+    if (!ensaio) {
+      const versao = await avisarVersaoApi(db, env.TELEGRAM_CHAT_ID, env.TELEGRAM_BOT_TOKEN);
+      if (versao === "enviado") log("aviso de versão da API enviado ao operador");
+    }
 
     for (const dev of devs) {
       try {
