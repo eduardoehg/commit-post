@@ -20,6 +20,7 @@ import { eq } from "drizzle-orm";
 import { coletarDoDev } from "./coleta";
 import { gerarEGravar } from "./geracao";
 import { enviarParaAprovacao } from "./envio";
+import { avisarExpiracao } from "./avisos";
 
 function log(mensagem: string): void {
   console.log(`[commitpost] ${mensagem}`);
@@ -77,6 +78,13 @@ async function processarDev(
   until: Date,
   ensaio: boolean,
 ): Promise<void> {
+  // Antes da coleta: um acesso vencendo é notícia mesmo que a semana não
+  // tenha rendido commit nenhum, e no ensaio nada é gravado nem enviado.
+  if (!ensaio) {
+    const aviso = await avisarExpiracao(db, dev.id, env.TELEGRAM_BOT_TOKEN);
+    if (aviso === "enviado") log(`${dev.login}: aviso de expiração enviado no Telegram`);
+  }
+
   const coleta = await coletarDoDev({
     db,
     userId: dev.id,

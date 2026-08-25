@@ -11,6 +11,7 @@ import { count, eq } from "drizzle-orm";
 import type { SessionUser } from "@commitpost/core/auth";
 import { deniedTerms, githubInstallations, oauthTokens, userEmails } from "@commitpost/core/db";
 import { computeOnboarding, type OnboardingSummary } from "@commitpost/core/onboarding";
+import { avaliarExpiracao, textoExpiracao } from "@commitpost/core/linkedin";
 import { GITHUB_COLLAB_PROVIDER, LINKEDIN_PROVIDER } from "./providers";
 import { db, env, requireUser } from "./runtime";
 
@@ -25,6 +26,12 @@ export interface ContextoPainel {
   ehDono: boolean;
   resumo: OnboardingSummary;
   termosCount: number;
+  /**
+   * Tudo que o painel precisa dizer sem impedir o dev de trabalhar. Junta os
+   * avisos do onboarding com os de credencial vencendo — para a casca ter uma
+   * lista só para mostrar, e não precisar saber de onde cada um veio.
+   */
+  avisos: string[];
 }
 
 export async function carregarContexto(): Promise<ContextoPainel> {
@@ -40,26 +47,38 @@ export async function carregarContexto(): Promise<ContextoPainel> {
     database.select({ n: count() }).from(userEmails).where(eq(userEmails.userId, user.id)),
     database.select({ n: count() }).from(deniedTerms).where(eq(deniedTerms.userId, user.id)),
     database
-      .select({ provider: oauthTokens.provider })
+      .select({ provider: oauthTokens.provider, expiresAt: oauthTokens.expiresAt })
       .from(oauthTokens)
       .where(eq(oauthTokens.userId, user.id)),
   ]);
 
   const providers = new Set(tokens.map((t) => t.provider));
 
-  return {
-    user,
-    ehDono: user.role === "owner",
-    termosCount: termos[0]?.n ?? 0,
-    resumo: computeOnboarding({
+  const resumo = computeOnboarding({
       installationCount: instalacoes[0]?.n ?? 0,
       emailCount: emails[0]?.n ?? 0,
       telegramLinked: user.telegramChatId !== null,
       hasCollaborationGrant: providers.has(GITHUB_COLLAB_PROVIDER),
       hasLinkedIn: providers.has(LINKEDIN_PROVIDER),
       collaborationsAvailable: configuration.GITHUB_OAUTH_CLIENT_ID !== undefined,
-      linkedInAvailable:
-        CONEXAO_LINKEDIN_PRONTA && configuration.LINKEDIN_CLIENT_ID !== undefined,
-    }),
+    linkedInAvailable:
+      CONEXAO_LINKEDIN_PRONTA && configuration.LINKEDIN_CLIENT_ID !== undefined,
+  });
+
+  // O acesso do LinkedIn não se renova sozinho — o refresh token não é
+  // concedido no tier padrão. Sem este aviso, o sintoma seria um post aprovado
+  // que não sai, dois meses depois de tudo ter funcionado.
+  const linkedin = tokens.find((t) => t.provider === LINKEDIN_PROVIDER);
+  const expiracao = linkedin === undefined ? null : avaliarExpiracao(linkedin.expiresAt);
+
+  return {
+    user,
+    ehDono: user.role === "owner",
+    termosCount: termos[0]?.n ?? 0,
+    resumo,
+    avisos: [
+      ...resumo.avisos,
+      ...(expiracao?.precisaAvisar === true ? [textoExpiracao(expiracao)] : []),
+    ],
   };
 }

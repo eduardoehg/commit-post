@@ -24,7 +24,7 @@ import { carregarContexto } from "@/lib/painel";
 import estilos from "./layout.module.css";
 
 export default async function LayoutPainel({ children }: { children: ReactNode }) {
-  const { user, ehDono, resumo } = await carregarContexto();
+  const { user, ehDono, resumo, avisos } = await carregarContexto();
 
   const pendentes = resumo.steps.filter((s) => s.required && !s.done);
 
@@ -91,7 +91,7 @@ export default async function LayoutPainel({ children }: { children: ReactNode }
       </aside>
 
       <div className={estilos.corpo}>
-        <FaixaPendencia quantos={pendentes.length} avisos={resumo.avisos} />
+        <FaixaPendencia quantos={pendentes.length} avisos={avisos} />
         <main className={estilos.conteudo}>{children}</main>
       </div>
     </div>
