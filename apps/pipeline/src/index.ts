@@ -19,6 +19,7 @@ import { extractTechnicalFacts } from "@commitpost/core/redact";
 import { eq } from "drizzle-orm";
 import { coletarDoDev } from "./coleta";
 import { gerarEGravar } from "./geracao";
+import { enviarParaAprovacao } from "./envio";
 
 function log(mensagem: string): void {
   console.log(`[commitpost] ${mensagem}`);
@@ -141,7 +142,29 @@ async function processarDev(
     for (const linha of candidato.texto.split("\n")) log(`${dev.login}: ${linha}`);
   }
 
-  // Fase 5 — envio com procedência (packages/core/telegram)
+  if (lote.batchId === null) return;
+
+  const envio = await enviarParaAprovacao({
+    db,
+    userId: dev.id,
+    botToken: env.TELEGRAM_BOT_TOKEN,
+    batchId: lote.batchId,
+    facts: fatos,
+    commitCount: coleta.novos.length,
+    windowStart: since,
+    windowEnd: until,
+  });
+
+  if (envio.tipo === "sem-telegram") {
+    // O lote fica pendente no banco de propósito: o dev vincula o Telegram e
+    // recebe na execução seguinte, em vez de perder o trabalho da semana.
+    log(`${dev.login}: sem Telegram vinculado — lote guardado para depois`);
+    return;
+  }
+
+  if (envio.tipo === "enviado") {
+    log(`${dev.login}: ${String(envio.quantidade)} post(s) no Telegram, esperando decisão`);
+  }
 }
 
 main().catch((error: unknown) => {

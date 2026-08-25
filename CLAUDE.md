@@ -68,7 +68,7 @@ Diferente da spec, as fases não são estritamente sequenciais:
 - **Fase 2** — coleta ✅, com o token de instalação do GitHub App e, para quem
   concedeu, o OAuth de colaboração.
 - **Fase 4** — geração dos candidatos ✅.
-- **Fase 5** — aprovação no Telegram.
+- **Fase 5** — aprovação no Telegram ✅.
 - **MVP para aqui**, com publicação manual (copiar do Telegram). Valida a
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
 - **Fase 6** — edição do post no painel, que a essa altura já existe.
@@ -204,6 +204,35 @@ que já provou não ser confiável.
 `npm run pipeline -- --ensaio` gera e mostra sem gravar nada. Existe porque a
 dedução de "commit novo" é o índice único: depois da primeira execução não sobra
 nada para experimentar, e a alternativa seria apagar linhas do banco de alguém.
+
+## A aprovação
+
+A terceira barreira, e a única que não é código. Por isso a mensagem mostra a
+PROCEDÊNCIA — aliases, contagem e shas curtos dos commits que originaram
+aquele texto. Sem isso o gate humano é decorativo: não há como perceber um
+vazamento que passou pelas duas barreiras anteriores se o dev não sabe do que
+o post está falando. Os aliases vêm dos commits DAQUELE lote, não de todos os
+repositórios do dev — a lista inteira seria sempre igual e o olho a pularia.
+
+O `callback_data` leva só `a:<id>` ou `r:<id>`. O Telegram **corta** em 64
+bytes em vez de recusar, e payload cortado vira decisão aplicada no candidato
+errado. O id do dono fica de fora de propósito: quem confere se o candidato é
+de quem clicou é o banco, e levar o dono no botão convidaria alguém a trocá-lo.
+
+Aprovar uma variação encerra as irmãs (`superseded`); recusar não diz nada
+sobre as outras. E a condição `status = pending` **dentro do UPDATE** — não a
+checagem antes dele — é o que faz dois cliques simultâneos produzirem uma
+decisão só. A checagem anterior existe para a mensagem de resposta; ela não
+protege da corrida, e um teste com dois `decideCandidate` em paralelo é o que
+segura essa distinção.
+
+O texto do post vai **sozinho** na mensagem dele, sem rótulo nem enfeite:
+enquanto a publicação automática não existe, copiar e colar é o caminho, e
+precisa funcionar sem atrito.
+
+Nada usa `parse_mode`. O corpo do post é texto de gente e pode conter `<`, `&`
+ou `_` — em HTML ou Markdown, um caractere desses faz o Telegram recusar a
+mensagem inteira, e o dev fica sem post sem entender por quê.
 
 ## Login, sessão e a tela de introdução
 

@@ -20,8 +20,13 @@
 import { timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { bindTelegramChat, redeemLinkCode } from "@commitpost/core/auth";
-import { users } from "@commitpost/core/db";
-import { sendMessage } from "@commitpost/core/telegram";
+import { decideCandidate, users, type ResultadoDecisao } from "@commitpost/core/db";
+import {
+  answerCallback,
+  markDecided,
+  parseCallbackData,
+  sendMessage,
+} from "@commitpost/core/telegram";
 import { db, env } from "@/lib/runtime";
 
 export const runtime = "nodejs";
@@ -39,11 +44,22 @@ function secretMatches(received: string | null, expected: string): boolean {
 interface Incoming {
   chatId: string | null;
   text: string | null;
+  /** Presentes só quando o dev clicou num botão. */
+  callbackId: string | null;
+  callbackData: string | null;
+  messageId: number | null;
 }
 
-/** Extrai chat e texto de qualquer formato de update que nos interessa. */
+/** Extrai chat, texto e clique de qualquer formato de update que nos interessa. */
 function readUpdate(update: unknown): Incoming {
-  if (typeof update !== "object" || update === null) return { chatId: null, text: null };
+  const vazio: Incoming = {
+    chatId: null,
+    text: null,
+    callbackId: null,
+    callbackData: null,
+    messageId: null,
+  };
+  if (typeof update !== "object" || update === null) return vazio;
   const u = update as Record<string, unknown>;
 
   const callback = u["callback_query"] as Record<string, unknown> | undefined;
@@ -52,9 +68,16 @@ function readUpdate(update: unknown): Incoming {
   const id = chat?.["id"];
   const text = u["message"] === undefined ? undefined : (message?.["text"] as unknown);
 
+  const callbackId = callback?.["id"];
+  const callbackData = callback?.["data"];
+  const messageId = message?.["message_id"];
+
   return {
     chatId: typeof id === "number" || typeof id === "string" ? String(id) : null,
     text: typeof text === "string" ? text : null,
+    callbackId: typeof callbackId === "string" ? callbackId : null,
+    callbackData: typeof callbackData === "string" ? callbackData : null,
+    messageId: typeof messageId === "number" ? messageId : null,
   };
 }
 
@@ -82,11 +105,20 @@ function ok(): Response {
  * sempre, contra um código que já foi consumido. O dev veria o bot mudo e uma
  * fila de retentativas girando atrás.
  */
-async function tentarResponder(token: string, chatId: string, texto: string): Promise<void> {
+async function tentarEnviar(token: string, chatId: string, texto: string): Promise<void> {
   try {
     await sendMessage(token, chatId, texto);
   } catch {
     // Nada a fazer daqui. O estado que importa já está no banco.
+  }
+}
+
+/** O aviso curto que faz o botão parar de girar. Também é cortesia. */
+async function tentarResponder(token: string, callbackId: string, texto: string): Promise<void> {
+  try {
+    await answerCallback(token, callbackId, texto);
+  } catch {
+    // Idem: a decisão já foi gravada.
   }
 }
 
@@ -103,7 +135,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const update: unknown = await request.json();
-  const { chatId, text } = readUpdate(update);
+  const { chatId, text, callbackId, callbackData, messageId } = readUpdate(update);
   if (chatId === null) return ok();
 
   const database = db();
@@ -111,7 +143,7 @@ export async function POST(request: Request): Promise<Response> {
 
   if (codigo !== null) {
     if (codigo === "") {
-      await tentarResponder(
+      await tentarEnviar(
         configuration.TELEGRAM_BOT_TOKEN,
         chatId,
         "Para vincular sua conta, abra o link que aparece na tela de introdução do CommitPost.",
@@ -123,7 +155,7 @@ export async function POST(request: Request): Promise<Response> {
     if (userId === null) {
       // Sem distinguir "não existe" de "expirou": para quem está do outro lado
       // a ação é a mesma, e a diferença só ajudaria quem chuta códigos.
-      await tentarResponder(
+      await tentarEnviar(
         configuration.TELEGRAM_BOT_TOKEN,
         chatId,
         "Este link não vale mais. Gere um novo na tela de introdução — eles duram 15 minutos.",
@@ -132,7 +164,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     await bindTelegramChat(database, userId, chatId);
-    await tentarResponder(
+    await tentarEnviar(
       configuration.TELEGRAM_BOT_TOKEN,
       chatId,
       "Pronto. É por aqui que seus posts vão chegar para aprovação.",
@@ -149,8 +181,89 @@ export async function POST(request: Request): Promise<Response> {
   const dono = donos[0];
   if (dono === undefined || !dono.active) return ok();
 
-  // TODO Fase 5: parseCallbackData → atualizar status → answerCallbackQuery
-  // para o botão parar de girar.
+  if (callbackId === null || callbackData === null) return ok();
+
+  const clique = parseCallbackData(callbackData);
+  if (clique === null) {
+    // Inclui o `callback_data: "x"` dos botões já decididos, que só existem
+    // para segurar a legenda depois que a decisão foi tomada.
+    await tentarResponder(configuration.TELEGRAM_BOT_TOKEN, callbackId, "Este lote já foi decidido.");
+    return ok();
+  }
+
+  const resultado = await decideCandidate(
+    database,
+    dono.id,
+    clique.candidateId,
+    clique.action,
+  );
+
+  await responderDecisao(configuration.TELEGRAM_BOT_TOKEN, {
+    callbackId,
+    chatId,
+    messageId,
+    resultado,
+    acao: clique.action,
+  });
 
   return ok();
+}
+
+/**
+ * Fecha o ciclo do clique: avisa o dev e tira os botões.
+ *
+ * Tudo aqui é cortesia depois do fato — a decisão já está no banco. Falhar em
+ * responder não pode virar 500, senão o Telegram reenvia o mesmo clique contra
+ * um candidato que não está mais pendente.
+ */
+async function responderDecisao(
+  token: string,
+  ctx: {
+    callbackId: string;
+    chatId: string;
+    messageId: number | null;
+    resultado: ResultadoDecisao;
+    acao: "approve" | "reject";
+  },
+): Promise<void> {
+  const { aviso, legenda } = descreverDecisao(ctx.resultado, ctx.acao);
+
+  await tentarResponder(token, ctx.callbackId, aviso);
+
+  if (legenda !== null && ctx.messageId !== null) {
+    try {
+      await markDecided(token, ctx.chatId, ctx.messageId, legenda);
+    } catch {
+      // Botão que não sumiu é chato, não é erro de estado.
+    }
+  }
+}
+
+function descreverDecisao(
+  resultado: ResultadoDecisao,
+  acao: "approve" | "reject",
+): { aviso: string; legenda: string | null } {
+  if (resultado.tipo === "nao-encontrada") {
+    // Mesma resposta para "não existe" e "não é seu". Distinguir os dois
+    // transformaria o botão num oráculo de quais ids existem.
+    return { aviso: "Este post não está mais disponível.", legenda: null };
+  }
+
+  if (resultado.tipo === "ja-decidida") {
+    return { aviso: "Este post já tinha sido decidido.", legenda: "— já decidido —" };
+  }
+
+  if (acao === "reject") {
+    return { aviso: "Recusado. Os outros continuam esperando.", legenda: "❌ recusado" };
+  }
+
+  const outros =
+    resultado.superseded > 0
+      ? ` As outras ${String(resultado.superseded)} versão(ões) foram encerradas.`
+      : "";
+
+  return {
+    aviso: `Aprovado.${outros} Copie o texto e publique no LinkedIn.`,
+    legenda: "✅ aprovado",
+  };
 }
