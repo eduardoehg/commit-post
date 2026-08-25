@@ -5,6 +5,7 @@ import {
   LLMError,
   aplicarBarreira2,
   buildUserPrompt,
+  contarAssuntos,
   extrairResposta,
   type Resposta,
 } from "./index";
@@ -66,10 +67,27 @@ describe("buildUserPrompt", () => {
 
 // ---------------------------------------------------------------------------
 
+/** A forma da semana magra: um assunto só, com várias versões dele. */
 function resposta(textos: string[], motivo: string | null = null): Resposta {
   return {
-    candidatos: textos.map((texto, i) => ({ angulo: `ângulo ${String(i)}`, texto })),
+    assuntos: [
+      {
+        tema: "um assunto",
+        posts: textos.map((texto, i) => ({ angulo: `ângulo ${String(i)}`, texto })),
+      },
+    ],
     motivo,
+  };
+}
+
+/** A forma da semana boa: um post por assunto, todos publicáveis. */
+function porAssunto(temas: readonly string[]): Resposta {
+  return {
+    assuntos: temas.map((tema) => ({
+      tema,
+      posts: [{ angulo: "único", texto: `Texto sobre ${tema}.` }],
+    })),
+    motivo: null,
   };
 }
 
@@ -152,7 +170,10 @@ describe("aplicarBarreira2", () => {
 // ---------------------------------------------------------------------------
 
 describe("extrairResposta", () => {
-  const valida = { candidatos: [{ angulo: "a", texto: "t" }], motivo: null };
+  const valida = {
+    assuntos: [{ tema: "assunto", posts: [{ angulo: "a", texto: "t" }] }],
+    motivo: null,
+  };
 
   it("aceita a saída estruturada do SDK", () => {
     expect(extrairResposta({ parsed_output: valida })).toEqual(valida);
@@ -166,19 +187,79 @@ describe("extrairResposta", () => {
   it("recusa resposta fora do formato em vez de seguir com undefined", () => {
     // O `undefined` viajaria até virar um post vazio no Telegram, e aí a causa
     // estaria três camadas atrás.
-    expect(() => extrairResposta({ parsed_output: { candidatos: "não é lista" } })).toThrow(LLMError);
+    expect(() => extrairResposta({ parsed_output: { assuntos: "não é lista" } })).toThrow(LLMError);
     expect(() => extrairResposta({ content: [{ type: "text", text: "não é json" }] })).toThrow(
       LLMError,
     );
     expect(() => extrairResposta({ content: [] })).toThrow(LLMError);
   });
 
-  it("recusa mais candidatos do que a regra de negócio permite", () => {
+  it("recusa mais assuntos do que a regra de negócio permite", () => {
     const demais = {
-      candidatos: Array.from({ length: CANDIDATES_MAX + 1 }, () => ({ angulo: "a", texto: "t" })),
+      assuntos: Array.from({ length: CANDIDATES_MAX + 1 }, (_, i) => ({
+        tema: `assunto ${String(i)}`,
+        posts: [{ angulo: "a", texto: "t" }],
+      })),
       motivo: null,
     };
 
     expect(() => extrairResposta({ parsed_output: demais })).toThrow(LLMError);
+  });
+
+  it("recusa assunto sem nenhum post", () => {
+    // Um assunto vazio viraria um grupo que existe e não tem o que aprovar —
+    // e o número do grupo seguinte sairia deslocado.
+    const vazio = { assuntos: [{ tema: "assunto", posts: [] }], motivo: null };
+    expect(() => extrairResposta({ parsed_output: vazio })).toThrow(LLMError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe("agrupamento por assunto", () => {
+  /**
+   * O aninhamento da resposta é o que distingue "publicar bastante" de
+   * "publicar repetido". Errar aqui não aparece na tela: aparece no perfil da
+   * pessoa, como três textos sobre a mesma coisa.
+   */
+
+  it("assuntos distintos viram grupos distintos", () => {
+    const resultado = aplicarBarreira2(porAssunto(["lentidão", "relatórios", "migração"]), []);
+
+    expect(resultado.candidatos.map((c) => c.grupo)).toEqual([0, 1, 2]);
+    expect(contarAssuntos(resultado.candidatos)).toBe(3);
+  });
+
+  it("versões do mesmo assunto ficam no MESMO grupo", () => {
+    // É o que faz aprovar uma encerrar as outras. Se cada versão virasse um
+    // grupo, o dev publicaria três redações da mesma história.
+    const resultado = aplicarBarreira2(resposta(["Primeiro texto.", "Segundo texto."]), []);
+
+    expect(resultado.candidatos.map((c) => c.grupo)).toEqual([0, 0]);
+    expect(contarAssuntos(resultado.candidatos)).toBe(1);
+  });
+
+  it("o grupo vem da posição, não some quando um assunto inteiro é descartado", () => {
+    // A trava contra o pior caso: se o grupo fosse recontado depois da
+    // barreira, o assunto 2 herdaria o número do assunto 1 descartado — e
+    // aprovar um encerraria irmãos que não são irmãos.
+    const bruto: Resposta = {
+      assuntos: [
+        { tema: "vazado", posts: [{ angulo: "a", texto: "Trabalho na Acme." }] },
+        { tema: "limpo", posts: [{ angulo: "b", texto: "Resolvi uma lentidão." }] },
+      ],
+      motivo: null,
+    };
+
+    const resultado = aplicarBarreira2(bruto, ["Acme"]);
+
+    expect(resultado.candidatos).toHaveLength(1);
+    expect(resultado.candidatos[0]?.grupo).toBe(1);
+    expect(resultado.candidatos[0]?.tema).toBe("limpo");
+  });
+
+  it("leva o tema de cada assunto para quem vai escolher", () => {
+    const resultado = aplicarBarreira2(porAssunto(["lentidão", "relatórios"]), []);
+    expect(resultado.candidatos.map((c) => c.tema)).toEqual(["lentidão", "relatórios"]);
   });
 });

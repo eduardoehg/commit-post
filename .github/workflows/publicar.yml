@@ -1,0 +1,56 @@
+# Publica os posts agendados cuja hora chegou.
+#
+# Separado do `scan` porque são ritmos diferentes: coletar e gerar custa
+# chamada de GitHub e de LLM e faz sentido uma vez por semana; publicar o que
+# venceu é uma consulta e uma chamada HTTP, e precisa acontecer perto da hora
+# marcada.
+#
+# De hora em hora, e não a cada dez minutos: o cron do Actions atrasa de 5 a 30
+# minutos de qualquer forma, então a granularidade real não melhoraria — só
+# multiplicaria execuções que na maioria das vezes não têm nada para fazer.
+# Na prática, "13h" quer dizer "durante as 13h".
+name: publicar
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+
+  # Obrigatório, não conveniência: workflows agendados são desabilitados
+  # automaticamente após 60 dias sem atividade no repositório. O disparo
+  # manual é a saída quando isso acontece — e serve para testar sem esperar.
+  workflow_dispatch:
+
+# Sem paralelismo, e sem cancelar o que está rodando: duas execuções ao mesmo
+# tempo pegariam a mesma fila e tentariam publicar o mesmo post duas vezes. O
+# `status` no UPDATE impediria a duplicata no banco, mas só DEPOIS de o post
+# já ter ido ao ar duas vezes no perfil de alguém.
+concurrency:
+  group: commitpost-publicar
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Só quatro variáveis, e isso é deliberado: este workflow não coleta nem
+      # gera, então não precisa da chave privada do App nem da Anthropic.
+      # Copiar segredos que o processo não usa seria exposição em troca de nada
+      # — `loadPublisherEnv` existe para essa lista ser curta e verificável.
+      - name: Publicar agendados
+        run: npm run agendados
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

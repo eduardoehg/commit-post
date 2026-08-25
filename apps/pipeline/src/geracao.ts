@@ -62,8 +62,12 @@ export async function gerarEGravar(options: GeracaoOptions): Promise<GeracaoResu
         batchId: lote.id,
         userId: options.userId,
         variantIndex: indice,
-        // `angulo` não vira coluna: ele serve para o dev escolher agora, na
-        // aprovação, e não faz parte do post. Vai na mensagem do Telegram.
+        // O grupo vem do modelo e é o que decide, na aprovação, quais irmãs
+        // são encerradas. Gravá-lo aqui é o que faz a decisão sobreviver ao
+        // fim desta execução — o Telegram só carrega o id do candidato.
+        themeGroup: candidato.grupo,
+        theme: candidato.tema,
+        angle: candidato.angulo,
         body: candidato.texto,
       })),
     );

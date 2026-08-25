@@ -17,6 +17,7 @@
 import type { Metadata } from "next";
 import { Acao, Recado, Selo, TituloPagina, Vazio, type EstadoSelo } from "@/components/ui";
 import { contagemPorStatus, historicoDe, type PostHistorico } from "@/lib/dados";
+import { fusoOuPadrao, rotularInstante } from "@commitpost/core/agenda";
 import { carregarContexto } from "@/lib/painel";
 import { primeiroParam } from "@/lib/params";
 import estilos from "./inicio.module.css";
@@ -31,10 +32,15 @@ const PADRAO = "approved";
 /**
  * A ordem segue o quanto cada lista pede de quem está olhando: aprovado
  * espera uma ação, esperando espera uma decisão, o resto é registro.
+ *
+ * "Agendados" vem logo depois dos que pedem ação, e não no fim com o arquivo:
+ * é a única lista onde uma coisa vai acontecer sozinha, e a pessoa precisa
+ * poder conferir o que vai sair antes de sair.
  */
 const FILTROS = [
   { chave: "approved", rotulo: "Aprovados" },
   { chave: "pending", rotulo: "Esperando" },
+  { chave: "scheduled", rotulo: "Agendados" },
   { chave: "published", rotulo: "Publicados" },
   { chave: "rejected", rotulo: "Recusados" },
   { chave: "superseded", rotulo: "Encerrados" },
@@ -44,6 +50,7 @@ const FILTROS = [
 const ROTULO_STATUS: Record<string, { texto: string; estado: EstadoSelo }> = {
   pending: { texto: "esperando decisão", estado: "pendente" },
   approved: { texto: "aprovado", estado: "ok" },
+  scheduled: { texto: "agendado", estado: "pendente" },
   published: { texto: "publicado", estado: "ok" },
   rejected: { texto: "recusado", estado: "inativo" },
   superseded: { texto: "encerrado", estado: "inativo" },
@@ -52,6 +59,7 @@ const ROTULO_STATUS: Record<string, { texto: string; estado: EstadoSelo }> = {
 const VAZIO_POR_FILTRO: Record<string, string> = {
   approved: "Nenhum post aprovado esperando publicação.",
   pending: "Nenhum post esperando decisão.",
+  scheduled: "Nenhum post com hora marcada.",
   published: "Nada publicado ainda.",
   rejected: "Nenhum post recusado.",
   superseded: "Nenhuma versão encerrada.",
@@ -74,6 +82,7 @@ export default async function PaginaInicio({
   ]);
 
   const nada = (contagem[TODOS] ?? 0) === 0;
+  const fuso = fusoOuPadrao(user.timezone);
 
   return (
     <>
@@ -119,7 +128,7 @@ export default async function PaginaInicio({
       ) : (
         <ol className={estilos.lista}>
           {posts.map((post) => (
-            <Post key={post.id} post={post} />
+            <Post key={post.id} post={post} fuso={fuso} />
           ))}
         </ol>
       )}
@@ -127,7 +136,7 @@ export default async function PaginaInicio({
   );
 }
 
-function Post({ post }: { post: PostHistorico }) {
+function Post({ post, fuso }: { post: PostHistorico; fuso: string }) {
   const rotulo = ROTULO_STATUS[post.status] ?? { texto: post.status, estado: "pendente" as const };
   const quando = post.decididoEm ?? post.criadoEm;
 
@@ -138,8 +147,23 @@ function Post({ post }: { post: PostHistorico }) {
         <span className={estilos.data}>
           <time dateTime={quando.toISOString()}>{formatarData(quando)}</time>
           {" · "}
-          {post.commits} commit(s) · opção {post.variante + 1}
+          {post.commits} commit(s)
+          {post.tema !== null ? ` · ${post.tema}` : ` · opção ${String(post.variante + 1)}`}
         </span>
+
+        {/*
+          A hora marcada aparece na LISTA, e não só ao abrir o post: um post
+          que vai ao ar sozinho é a única coisa aqui que acontece sem ninguém
+          clicar, e ter que abrir cada um para descobrir quando seria o mesmo
+          que não avisar.
+        */}
+        {post.agendadoPara !== null && (
+          <span className={estilos.agendado}>
+            <time dateTime={post.agendadoPara.toISOString()}>
+              sai {rotularInstante(post.agendadoPara, fuso)}
+            </time>
+          </span>
+        )}
       </div>
 
       {/*

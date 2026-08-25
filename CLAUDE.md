@@ -12,18 +12,23 @@ obrigatória antes de publicar.
    explicar solução técnica.
 3. **Aprovação humana obrigatória.** O sistema gera candidatos. Nunca publica
    sozinho.
-4. **2 a 3 variações por ciclo.**
+4. **Até 3 posts por ciclo**, um por assunto distinto. Havendo um assunto só,
+   viram 2-3 versões dele e apenas uma vai ao ar.
 
 ## Arquitetura
 
 ```
 GitHub Actions (cron, UTC)
-  └─ apps/pipeline  ← o pipeline roda INTEIRO aqui, no runner
-       ├─ coleta commits          packages/core/github    (Fase 2)
-       ├─ filtra por allowlist    packages/core/redact    (Fase 3)
-       ├─ gera 2-3 candidatos     packages/core/llm       (Fase 4)
-       ├─ grava o lote            packages/core/db        (Fase 1)
-       └─ envia c/ procedência    packages/core/telegram  (Fase 5)
+  ├─ scan.yml — semanal. O pipeline roda INTEIRO aqui, no runner
+  │    └─ apps/pipeline
+  │         ├─ coleta commits          packages/core/github    (Fase 2)
+  │         ├─ filtra por allowlist    packages/core/redact    (Fase 3)
+  │         ├─ gera 1 post por assunto packages/core/llm       (Fases 4 e 8)
+  │         ├─ grava o lote            packages/core/db        (Fase 1)
+  │         └─ envia c/ procedência    packages/core/telegram  (Fase 5)
+  │
+  └─ publicar.yml — de hora em hora, só o que venceu   (Fase 8)
+       └─ apps/pipeline/src/agendados.ts
 
 Vercel — apps/web
   ├─ /                    entrar com o GitHub
@@ -34,7 +39,7 @@ Vercel — apps/web
        ├─ /repositorios   o que É LIDO
        ├─ /palavras       o que jamais é ESCRITO
        ├─ /devs           liberar acesso — só o dono
-       └─ /post/[id]      editar e decidir              (Fase 6)
+       └─ /post/[id]      editar, publicar ou agendar   (Fases 6 e 8)
 
   API (sem casca, redirecionam)
        ├─ POST /api/telegram/webhook       secret + chat no banco
@@ -81,9 +86,64 @@ Diferente da spec, as fases não são estritamente sequenciais:
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
 - **Fase 6** — edição do post no painel, que a essa altura já existe.
 - **Fase 7** — publicação no LinkedIn ✅, com post real no ar.
+- **Fase 8** — assuntos e agendamento ✅.
 
-Não existe **agendamento de publicação**: aprovar publica na hora. Escolher
-quando o post sai é a única coisa do fluxo original que ainda não foi feita.
+## Assuntos, e por que aprovar deixou de encerrar o lote
+
+Até a Fase 7 as 2-3 variações eram **ângulos do mesmo trabalho**, e por isso
+aprovar uma encerrava as irmãs: publicar duas seria contar a mesma história
+duas vezes. Isso limitava o sistema a um post por ciclo.
+
+Agora o modelo separa o período em **assuntos** e a resposta vem aninhada —
+`assuntos[].posts[]`. O aninhamento É a informação, e é aninhado em vez de um
+campo `grupo: number` porque um número o modelo pode contradizer; a
+contradição aninhada não tem como ser escrita.
+
+Disso saem as duas formas:
+
+| Semana | O que vem | O que dá para fazer |
+|---|---|---|
+| Vários assuntos | um post por assunto | publicar todos, em dias diferentes |
+| Um assunto só | 2-3 versões dele | escolher uma; as outras encerram |
+
+`post_candidates.theme_group` é o que carrega isso até a decisão, e
+`decideCandidate` encerra as irmãs **do mesmo grupo**, não as do lote. Sem essa
+coluna as duas situações seriam indistinguíveis, e o sistema teria que escolher
+entre nunca deixar publicar mais de um ou deixar publicar três versões da mesma
+coisa.
+
+O prompt proíbe **inventar um segundo assunto para encher a lista** — forçar um
+assunto é inventar, o que a REGRA 1 já proibia. Um assunto real com três
+versões é melhor do que três assuntos em que dois foram forçados.
+
+## O agendamento
+
+`packages/core/src/agenda.ts` é puro e recebe o relógio de fora — a alternativa
+para testar "amanhã às 9h em Brasília" seria esperar até amanhã.
+
+**O banco guarda UTC, sempre.** `users.timezone` serve para INTERPRETAR a
+escolha ("9h" de quem?) e para EXIBIR depois. Guardar hora local seria guardar
+um número que muda de significado quando a pessoa troca de fuso.
+
+`instanteDe` faz o caminho de volta — hora de parede → instante — em **duas
+passagens**. A segunda não é zelo: o deslocamento depende do instante, que é
+justamente o que se procura. Varrendo fusos reais, Auckland devolve 01h para
+quem pediu meia-noite do dia da virada do horário de verão. O Brasil não tem
+mais horário de verão, então testar só aqui deixaria a correção sem defesa.
+
+O `callback_data` do Telegram leva o **índice** do atalho, nunca a data: uma
+data no botão seria um dado de fora decidindo quando um post vai ao ar.
+
+Quem publica é `.github/workflows/publicar.yml`, de hora em hora, separado do
+`scan` semanal. O cron do Actions atrasa de 5 a 30 minutos, então "13h" quer
+dizer "durante as 13h" — para post de LinkedIn não muda nada, e a alternativa
+seria um processo nosso ligado o tempo todo. Ele usa `loadPublisherEnv`, com
+quatro variáveis: não coleta nem gera, então não recebe a chave privada do App
+nem a da Anthropic.
+
+Post que falha continua `scheduled` com a hora vencida, então a execução
+seguinte o encontra de novo. É a retentativa inteira — sem fila separada, sem
+contador.
 
 ## A versão da API do LinkedIn
 
@@ -430,6 +490,7 @@ npm run typecheck    # tsc em todos os pacotes
 npm test             # vitest
 npm run pipeline     # roda o pipeline localmente (precisa de .env.local)
 npm run pipeline -- --ensaio   # mostra o que sairia, sem gravar nada
+npm run agendados    # publica o que já venceu (o que o publicar.yml roda)
 npm run dev          # sobe o Next em apps/web
 ```
 

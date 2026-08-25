@@ -14,7 +14,9 @@
     "./llm": "./src/llm/index.ts",
     "./telegram": "./src/telegram/index.ts",
     "./linkedin": "./src/linkedin/index.ts",
-    "./redact": "./src/redact/index.ts"
+    "./redact": "./src/redact/index.ts",
+    "./agenda": "./src/agenda.ts",
+    "./publicar": "./src/publicar.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

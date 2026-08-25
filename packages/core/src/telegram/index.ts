@@ -26,7 +26,14 @@ const API = "https://api.telegram.org";
 /** Limite do Telegram para o payload de um botão inline. */
 export const CALLBACK_DATA_MAX_BYTES = 64;
 
-export type CallbackAction = "approve" | "reject";
+/**
+ * O que os botões oferecem.
+ *
+ * `menu` e `voltar` não decidem nada — só trocam o teclado da mensagem entre
+ * "o que fazer com este post" e "para quando". O Telegram não tem submenu; a
+ * única forma de ter dois níveis é reescrever o teclado no lugar.
+ */
+export type CallbackAction = "publish" | "schedule" | "reject" | "menu" | "voltar";
 
 export class TelegramError extends Error {
   constructor(message: string) {
@@ -73,16 +80,41 @@ export async function fetchBotUsername(token: string): Promise<string> {
 // Botões
 // ---------------------------------------------------------------------------
 
+const LETRA_DA_ACAO: Record<CallbackAction, string> = {
+  publish: "p",
+  schedule: "s",
+  reject: "r",
+  menu: "g",
+  voltar: "v",
+};
+
+const ACAO_DA_LETRA: Record<string, CallbackAction> = {
+  p: "publish",
+  s: "schedule",
+  r: "reject",
+  g: "menu",
+  v: "voltar",
+};
+
 /**
- * `a:123` e `r:123`. Curto porque o Telegram corta em 64 bytes, e um payload
- * cortado vira uma decisão aplicada no candidato errado.
+ * `p:123`, `r:123`, `s:123:2`. Curto porque o Telegram corta em 64 bytes em vez
+ * de recusar, e um payload cortado vira decisão aplicada no candidato errado.
  *
- * O id do candidato é suficiente e o do usuário é deliberadamente omitido: quem
+ * O id do candidato é suficiente e o do dono é deliberadamente omitido: quem
  * confere se o candidato é de quem clicou é o banco, no momento da decisão.
  * Levar o dono no botão convidaria alguém a trocá-lo.
+ *
+ * O horário do agendamento também fica de fora: vai o ÍNDICE da opção, e o
+ * instante é recalculado no servidor a partir dele. Uma data no botão seria um
+ * dado de fora decidindo quando um post vai ao ar.
  */
-export function buildCallbackData(action: CallbackAction, candidateId: number): string {
-  const dados = `${action === "approve" ? "a" : "r"}:${String(candidateId)}`;
+export function buildCallbackData(
+  action: CallbackAction,
+  candidateId: number,
+  slot?: number,
+): string {
+  const sufixo = slot === undefined ? "" : `:${String(slot)}`;
+  const dados = `${LETRA_DA_ACAO[action]}:${String(candidateId)}${sufixo}`;
 
   if (Buffer.byteLength(dados, "utf8") > CALLBACK_DATA_MAX_BYTES) {
     throw new TelegramError(`callback_data acima de ${String(CALLBACK_DATA_MAX_BYTES)} bytes.`);
@@ -93,17 +125,28 @@ export function buildCallbackData(action: CallbackAction, candidateId: number): 
 export interface ParsedCallback {
   action: CallbackAction;
   candidateId: number;
+  /** Qual atalho de horário. Só existe em `schedule`. */
+  slot: number | null;
 }
 
 /** Devolve null para qualquer coisa que não tenha saído de `buildCallbackData`. */
 export function parseCallbackData(data: string): ParsedCallback | null {
-  const match = /^([ar]):(\d{1,15})$/.exec(data);
+  const match = /^([prsgv]):(\d{1,15})(?::(\d{1,2}))?$/.exec(data);
   if (match === null) return null;
 
   const candidateId = Number(match[2]);
   if (!Number.isSafeInteger(candidateId) || candidateId <= 0) return null;
 
-  return { action: match[1] === "a" ? "approve" : "reject", candidateId };
+  const action = ACAO_DA_LETRA[match[1] ?? ""];
+  if (action === undefined) return null;
+
+  const slot = match[3] === undefined ? null : Number(match[3]);
+
+  // Agendar sem dizer para quando não é uma decisão — e seguir com o slot
+  // nulo publicaria na hora um post que a pessoa quis adiar.
+  if (action === "schedule" && slot === null) return null;
+
+  return { action, candidateId, slot };
 }
 
 // ---------------------------------------------------------------------------
@@ -133,9 +176,12 @@ function dataCurta(d: Date): string {
  * é o que permite ao dev reencontrar exatamente o commit se algo parecer
  * errado — que é a função inteira desta mensagem.
  */
-export function formatProvenance(p: Procedencia, angulos: readonly string[]): string {
+export function formatProvenance(
+  p: Procedencia,
+  candidatos: readonly CandidatoParaEnvio[],
+): string {
   const linhas = [
-    `Posts para aprovar — ${dataCurta(p.windowStart)} a ${dataCurta(p.windowEnd)}`,
+    `Posts para decidir — ${dataCurta(p.windowStart)} a ${dataCurta(p.windowEnd)}`,
     "",
     `De ${String(p.commitCount)} commit(s) em: ${p.aliases.join(", ")}`,
   ];
@@ -146,9 +192,24 @@ export function formatProvenance(p: Procedencia, angulos: readonly string[]): st
     linhas.push(`${curtos.join(" ")}${resto > 0 ? ` (+${String(resto)})` : ""}`);
   }
 
-  linhas.push("", "Opções:");
-  angulos.forEach((angulo, i) => linhas.push(`${String(i + 1)}. ${angulo}`));
-  linhas.push("", "Nada é publicado sem você aprovar.");
+  const grupos = [...new Set(candidatos.map((c) => c.grupo))];
+
+  // A frase mais importante da mensagem, e a que muda conforme o lote.
+  //
+  // Com um assunto só, os textos são versões da mesma história: aprovar um
+  // encerra os outros, e quem não souber disso vai achar que perdeu dois
+  // posts. Com vários assuntos é o contrário — deixar de dizer que dá para
+  // publicar todos faz o dev escolher um e descartar trabalho bom.
+  if (grupos.length > 1) {
+    linhas.push("", `${String(grupos.length)} assuntos diferentes — pode publicar todos:`);
+    candidatos.forEach((c, i) => linhas.push(`${String(i + 1)}. ${c.tema}`));
+    linhas.push("", "Agende em dias diferentes para não sair tudo junto.");
+  } else {
+    linhas.push("", "Um assunto, em versões — só uma vai ao ar:");
+    candidatos.forEach((c, i) => linhas.push(`${String(i + 1)}. ${c.angulo}`));
+  }
+
+  linhas.push("", "Nada é publicado sem você decidir.");
 
   return linhas.join("\n");
 }
@@ -157,15 +218,67 @@ export interface InlineKeyboard {
   inline_keyboard: { text: string; callback_data: string }[][];
 }
 
-export function buildKeyboard(candidateId: number, numero: number): InlineKeyboard {
+/**
+ * O teclado de decisão: publicar agora, marcar hora, ou recusar.
+ *
+ * Publicar e agendar em cima, recusar embaixo e sozinho. Não é estética: os
+ * três seriam uma fileira de alvos do mesmo tamanho num celular, e o que
+ * separa "vai ao ar no meu perfil" de "some para sempre" seria meio centímetro
+ * de polegar.
+ */
+export function buildKeyboard(candidateId: number): InlineKeyboard {
   return {
     inline_keyboard: [
       [
-        { text: `✅ Aprovar ${String(numero)}`, callback_data: buildCallbackData("approve", candidateId) },
-        { text: `❌ Recusar ${String(numero)}`, callback_data: buildCallbackData("reject", candidateId) },
+        { text: "🚀 Publicar agora", callback_data: buildCallbackData("publish", candidateId) },
+        { text: "🗓 Agendar", callback_data: buildCallbackData("menu", candidateId) },
       ],
+      [{ text: "❌ Recusar", callback_data: buildCallbackData("reject", candidateId) }],
     ],
   };
+}
+
+export interface OpcaoDeHorario {
+  id: number;
+  rotulo: string;
+}
+
+/**
+ * O segundo nível: para quando.
+ *
+ * Um horário por linha porque o rótulo tem dia da semana e data, e três deles
+ * lado a lado ficam ilegíveis num celular. "Voltar" existe para quem tocou em
+ * agendar sem querer não ter que escolher uma data para escapar.
+ */
+export function buildScheduleKeyboard(
+  candidateId: number,
+  opcoes: readonly OpcaoDeHorario[],
+): InlineKeyboard {
+  return {
+    inline_keyboard: [
+      ...opcoes.map((opcao) => [
+        {
+          text: `🗓 ${opcao.rotulo}`,
+          callback_data: buildCallbackData("schedule", candidateId, opcao.id),
+        },
+      ]),
+      [{ text: "‹ voltar", callback_data: buildCallbackData("voltar", candidateId) }],
+    ],
+  };
+}
+
+/** Troca o teclado de uma mensagem sem mexer no texto dela. */
+export async function replaceKeyboard(
+  token: string,
+  chatId: string,
+  messageId: number,
+  keyboard: InlineKeyboard,
+): Promise<void> {
+  await callApi(token, "editMessageReplyMarkup", {
+    chat_id: chatId,
+    message_id: messageId,
+    reply_markup: keyboard,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +306,9 @@ export async function sendMessage(
 
 export interface CandidatoParaEnvio {
   id: number;
+  /** Qual assunto do lote. Textos do mesmo grupo são versões um do outro. */
+  grupo: number;
+  tema: string;
   angulo: string;
   texto: string;
 }
@@ -200,10 +316,10 @@ export interface CandidatoParaEnvio {
 /**
  * Manda o lote: um cabeçalho com procedência e uma mensagem por candidato.
  *
- * O texto do post vai SOZINHO na mensagem dele, sem rótulo nem enfeite, para
- * que copiar e colar no LinkedIn não traga junto nada nosso. Enquanto a
- * publicação automática não existe, copiar é o caminho — e é o que precisa
- * funcionar sem atrito.
+ * O texto do post vai SOZINHO na mensagem dele, sem rótulo nem enfeite. Mesmo
+ * com a publicação automática funcionando, copiar e colar continua sendo a
+ * saída quando o LinkedIn recusa — e é o que precisa funcionar sem atrito
+ * justamente no dia em que algo deu errado.
  */
 export async function sendCandidates(options: {
   token: string;
@@ -214,16 +330,11 @@ export async function sendCandidates(options: {
   const { token, chatId, candidatos, procedencia } = options;
   if (candidatos.length === 0) return [];
 
-  await sendMessage(token, chatId, formatProvenance(procedencia, candidatos.map((c) => c.angulo)));
+  await sendMessage(token, chatId, formatProvenance(procedencia, candidatos));
 
   const enviados: { candidateId: number; messageId: number }[] = [];
-  for (const [indice, candidato] of candidatos.entries()) {
-    const messageId = await sendMessage(
-      token,
-      chatId,
-      candidato.texto,
-      buildKeyboard(candidato.id, indice + 1),
-    );
+  for (const candidato of candidatos) {
+    const messageId = await sendMessage(token, chatId, candidato.texto, buildKeyboard(candidato.id));
     enviados.push({ candidateId: candidato.id, messageId });
   }
 

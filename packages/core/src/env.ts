@@ -199,8 +199,26 @@ const webSchema = z.object({
   LINKEDIN_REDIRECT_URI: optional(httpUrl),
 });
 
+/**
+ * O publicador de agendados — Fase 8.
+ *
+ * Um schema próprio, e não `loadPipelineEnv`, porque ele roda de hora em hora
+ * e NÃO coleta nem gera: não fala com o GitHub nem com a Anthropic. Exigir a
+ * chave privada do App e a da Anthropic obrigaria a copiar para o workflow
+ * segredos que ele não usa — e um segredo a mais num lugar a mais é uma
+ * exposição a mais, em troca de nada.
+ */
+const publisherSchema = z.object({
+  DATABASE_URL: z.string().min(1),
+  TOKEN_ENCRYPTION_KEY: encryptionKey,
+  TELEGRAM_BOT_TOKEN: z.string().min(1),
+  /** Destino do aviso quando um post agendado não consegue sair. */
+  TELEGRAM_CHAT_ID: optional(z.string().min(1)),
+});
+
 export type PipelineEnv = z.infer<typeof pipelineSchema>;
 export type WebEnv = z.infer<typeof webSchema>;
+export type PublisherEnv = z.infer<typeof publisherSchema>;
 
 /** Erro com todas as variáveis problemáticas de uma vez, não só a primeira. */
 export class EnvValidationError extends Error {
@@ -236,4 +254,11 @@ export function loadWebEnv(
   source: Record<string, string | undefined> = process.env,
 ): WebEnv {
   return parse(webSchema, "web", source);
+}
+
+/** Envs exigidas pelo publicador de agendados (Actions, de hora em hora). */
+export function loadPublisherEnv(
+  source: Record<string, string | undefined> = process.env,
+): PublisherEnv {
+  return parse(publisherSchema, "publicador", source);
 }

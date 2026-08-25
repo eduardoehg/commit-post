@@ -19,6 +19,7 @@ import { and, eq } from "drizzle-orm";
 import {
   decideCandidate,
   deniedTerms,
+  desagendarCandidato,
   grantAccess,
   listAccess,
   normalizeLogin,
@@ -30,6 +31,13 @@ import {
   userEmails,
   users,
 } from "@commitpost/core/db";
+import {
+  fusoOuPadrao,
+  instanteDe,
+  rotularInstante,
+  textoDoProblema,
+  validarAgendamento,
+} from "@commitpost/core/agenda";
 import { publicarNoLinkedIn } from "@/lib/publicar";
 import { db, requireUser } from "@/lib/runtime";
 
@@ -277,6 +285,64 @@ export async function salvarTexto(formData: FormData): Promise<void> {
   done(voltar, { aviso: "Texto salvo." });
 }
 
+/**
+ * Agendar pelo painel.
+ *
+ * É aqui que entra data digitada — o Telegram só oferece atalhos. `datetime-local`
+ * devolve hora de parede sem fuso ("2026-09-15T09:00"), e é o fuso do DEV que
+ * a interpreta, não o do servidor. Sem isso, "9h" viraria 9h UTC e o post
+ * sairia às 6h da manhã no Brasil.
+ */
+export async function agendarPost(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const voltar = voltarPara(formData);
+  const id = Number(field(formData, "id"));
+  if (!Number.isSafeInteger(id) || id <= 0) done(voltar, { erro: "Post inválido." });
+
+  const bruto = field(formData, "quando");
+  const partes = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(bruto);
+  if (partes === null) done(voltar, { erro: "Escolha uma data e uma hora." });
+
+  const fuso = fusoOuPadrao(user.timezone);
+  const quando = instanteDe(
+    Number(partes[1]),
+    Number(partes[2]),
+    Number(partes[3]),
+    Number(partes[4]),
+    Number(partes[5]),
+    fuso,
+  );
+
+  const problema = validarAgendamento(quando);
+  if (problema !== null) done(voltar, { erro: textoDoProblema(problema) });
+
+  const resultado = await decideCandidate(db(), user.id, id, "schedule", quando);
+
+  if (resultado.tipo === "nao-encontrada") done(voltar, { erro: "Este post não está mais disponível." });
+  if (resultado.tipo === "sem-horario") done(voltar, { erro: "Escolha uma data e uma hora." });
+  if (resultado.tipo === "ja-decidida") done(voltar, { erro: "Este post já tinha sido decidido." });
+
+  const outras =
+    resultado.tipo === "aplicada" && resultado.encerradas.length > 0
+      ? ` As outras ${String(resultado.encerradas.length)} versões deste assunto foram encerradas.`
+      : "";
+
+  done(voltar, { aviso: `Agendado para ${rotularInstante(quando, fuso)}.${outras}` });
+}
+
+/** Desfaz o agendamento e devolve o post para a fila, sem publicar. */
+export async function desagendarPost(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const voltar = voltarPara(formData);
+  const id = Number(field(formData, "id"));
+  if (!Number.isSafeInteger(id) || id <= 0) done(voltar, { erro: "Post inválido." });
+
+  const desfeito = await desagendarCandidato(db(), user.id, id);
+  if (!desfeito) done(voltar, { erro: "Este post não está agendado." });
+
+  done(voltar, { aviso: "Agendamento cancelado. O post continua aprovado, sem hora marcada." });
+}
+
 async function decidirPeloPainel(formData: FormData, decisao: "approve" | "reject"): Promise<void> {
   const user = await requireUser();
   const voltar = voltarPara(formData);
@@ -294,7 +360,7 @@ async function decidirPeloPainel(formData: FormData, decisao: "approve" | "rejec
 
   const outras =
     resultado.tipo === "aplicada" && resultado.encerradas.length > 0
-      ? ` As outras ${String(resultado.encerradas.length)} foram encerradas.`
+      ? ` As outras ${String(resultado.encerradas.length)} versões deste assunto foram encerradas.`
       : "";
 
   // A publicação usa o mesmo caminho do Telegram. Duas implementações de
@@ -348,6 +414,13 @@ export async function publicarAgora(formData: FormData): Promise<void> {
 
   if (publicacao.tipo === "falhou") {
     done(voltar, { erro: `Não saiu no LinkedIn: ${publicacao.motivo}` });
+  }
+
+  if (publicacao.tipo === "nao-publicavel") {
+    // Duas abas abertas, ou o workflow do agendamento chegou primeiro. A
+    // resposta certa é dizer o que aconteceu, não tentar de novo — o post já
+    // está no ar e insistir o duplicaria no perfil.
+    done(voltar, { erro: `Este post já está ${publicacao.statusAtual}.` });
   }
 
   done(voltar, { aviso: `Publicado. ${publicacao.url}` });

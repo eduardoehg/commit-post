@@ -44,12 +44,32 @@ export class LLMError extends Error {
   }
 }
 
+/**
+ * A resposta vem AGRUPADA POR ASSUNTO, e o aninhamento é a informação.
+ *
+ * Dois posts sobre o mesmo assunto são versões: contam a mesma história e só
+ * uma pode sair. Dois posts sobre assuntos diferentes são conteúdos: podem sair
+ * os dois, em dias diferentes. É a diferença entre publicar bastante e publicar
+ * repetido.
+ *
+ * Podia ser um campo `grupo: number` em cada candidato. Não é, porque um número
+ * o modelo pode contradizer — dois candidatos com o mesmo grupo e temas
+ * distintos é uma resposta que o schema aceitaria e que não quer dizer nada.
+ * Aninhado, a contradição não tem como ser escrita.
+ */
 const respostaSchema = z.object({
-  candidatos: z
+  assuntos: z
     .array(
       z.object({
-        angulo: z.string().min(1).max(80),
-        texto: z.string().min(1),
+        tema: z.string().min(1).max(80),
+        posts: z
+          .array(
+            z.object({
+              angulo: z.string().min(1).max(80),
+              texto: z.string().min(1),
+            }),
+          )
+          .min(1),
       }),
     )
     .max(CANDIDATES_MAX),
@@ -60,7 +80,14 @@ const respostaSchema = z.object({
 export type Resposta = z.infer<typeof respostaSchema>;
 
 export interface PostCandidate {
-  /** Em que este texto difere dos outros. Ajuda o dev a escolher rápido. */
+  /**
+   * Qual assunto do lote este texto trata. Textos com o mesmo grupo são
+   * versões um do outro; aprovar um encerra os irmãos de grupo, e só eles.
+   */
+  grupo: number;
+  /** O assunto em poucas palavras, para escolher sem reler os três textos. */
+  tema: string;
+  /** Em que este texto difere dos outros DO MESMO grupo. */
   angulo: string;
   texto: string;
 }
@@ -122,8 +149,13 @@ Primeira pessoa. Alguém contando o que resolveu e o que aprendeu, não se vende
 REGRA 4 — FORMA.
 Entre 500 e ${String(ALVO_MAX_CHARS)} caracteres. Primeira linha curta e concreta, porque é a única que aparece antes do "ver mais". Parágrafos de duas ou três linhas.
 
-REGRA 5 — VARIAÇÕES DE VERDADE.
-De ${String(CANDIDATES_MIN)} a ${String(CANDIDATES_MAX)} candidatos, cada um com um ÂNGULO diferente — não a mesma coisa reescrita. Ângulos que funcionam: o problema e como ele se manifestava; o que você aprendeu e faria diferente; a decisão técnica e o que ela custou. O campo "angulo" descreve isso em poucas palavras, para quem vai escolher.
+REGRA 5 — UM POST POR ASSUNTO.
+Primeiro separe o trabalho recebido em ASSUNTOS distintos: itens que resolvem coisas diferentes são assuntos diferentes. No máximo ${String(CANDIDATES_MAX)} posts no total, somando tudo.
+
+- Havendo VÁRIOS assuntos: escreva UM post para cada. Eles serão publicados em dias diferentes, então não podem se sobrepor — nada de dois posts citando o mesmo trabalho.
+- Havendo UM assunto só: escreva de ${String(CANDIDATES_MIN)} a ${String(CANDIDATES_MAX)} versões dele, com ÂNGULOS diferentes. Ângulos que funcionam: o problema e como ele se manifestava; o que você aprendeu e faria diferente; a decisão técnica e o que ela custou. Só uma será publicada.
+
+Não invente um segundo assunto para encher a lista. Um assunto real com três versões é melhor do que três assuntos em que dois foram forçados — e forçar um assunto é inventar, o que a REGRA 1 proíbe. O campo "tema" nomeia o assunto em poucas palavras; o campo "angulo" diz em que aquela versão difere das outras DO MESMO assunto.
 
 Nunca invente. Se não dá para escrever honestamente, diga que não dá.`;
 
@@ -184,27 +216,45 @@ export async function generatePostCandidates(
         schema: {
           type: "object",
           additionalProperties: false,
-          required: ["candidatos", "motivo"],
+          required: ["assuntos", "motivo"],
           properties: {
-            candidatos: {
+            assuntos: {
               // Sem `maxItems`: a API recusa a palavra em schema de saída
               // estruturada. O teto vive no prompt e, de verdade, no zod que
               // valida a resposta — que é onde ele precisa estar de qualquer
               // forma, porque um schema não impede o modelo de exagerar.
               type: "array",
+              description: "Um por assunto distinto do período",
               items: {
                 type: "object",
                 additionalProperties: false,
-                required: ["angulo", "texto"],
+                required: ["tema", "posts"],
                 properties: {
-                  angulo: { type: "string", description: "Em que este texto difere dos outros" },
-                  texto: { type: "string", description: "O post, pronto para publicar" },
+                  tema: { type: "string", description: "O assunto em poucas palavras" },
+                  posts: {
+                    type: "array",
+                    description:
+                      "Versões deste mesmo assunto. Só uma será publicada, então " +
+                      "só escreva mais de uma quando este for o único assunto.",
+                    items: {
+                      type: "object",
+                      additionalProperties: false,
+                      required: ["angulo", "texto"],
+                      properties: {
+                        angulo: {
+                          type: "string",
+                          description: "Em que esta versão difere das outras do mesmo assunto",
+                        },
+                        texto: { type: "string", description: "O post, pronto para publicar" },
+                      },
+                    },
+                  },
                 },
               },
             },
             motivo: {
               type: ["string", "null"],
-              description: "Por que vieram menos de dois candidatos, ou null",
+              description: "Por que vieram menos de dois posts, ou null",
             },
           },
         },
@@ -270,20 +320,29 @@ export function aplicarBarreira2(
   const candidatos: PostCandidate[] = [];
   const descartados: DescartadoPorFiltro[] = [];
 
-  for (const candidato of resposta.candidatos) {
-    const { text, removed } = scrubGeneratedText(candidato.texto, { deniedTerms });
+  // O índice do assunto vira o grupo. Vem da POSIÇÃO na resposta, e não de um
+  // número que o modelo escolhesse: assim ele é único por construção, e um
+  // assunto inteiro reprovado na barreira 2 não deixa dois grupos com o mesmo
+  // número — o que faria "aprovar encerra as irmãs" encerrar as erradas.
+  for (const [grupo, assunto] of resposta.assuntos.entries()) {
+    for (const post of assunto.posts) {
+      const { text, removed } = scrubGeneratedText(post.texto, { deniedTerms });
 
-    if (removed.length > 0) {
-      descartados.push({ angulo: candidato.angulo, removidos: removed });
-      continue;
+      if (removed.length > 0) {
+        descartados.push({ angulo: post.angulo, removidos: removed });
+        continue;
+      }
+
+      if (text.length > LINKEDIN_MAX_CHARS) {
+        descartados.push({
+          angulo: post.angulo,
+          removidos: ["texto acima do limite do LinkedIn"],
+        });
+        continue;
+      }
+
+      candidatos.push({ grupo, tema: assunto.tema, angulo: post.angulo, texto: text });
     }
-
-    if (text.length > LINKEDIN_MAX_CHARS) {
-      descartados.push({ angulo: candidato.angulo, removidos: ["texto acima do limite do LinkedIn"] });
-      continue;
-    }
-
-    candidatos.push({ angulo: candidato.angulo, texto: text });
   }
 
   const motivo =
@@ -295,4 +354,16 @@ export function aplicarBarreira2(
           : "o modelo não gerou variações suficientes"));
 
   return { candidatos, descartados, motivo };
+}
+
+/**
+ * Quantos assuntos DISTINTOS sobraram depois da barreira 2.
+ *
+ * É o número que decide a mensagem do Telegram: com um assunto só, o dev
+ * escolhe uma das versões; com vários, ele pode publicar todos. Dizer a coisa
+ * errada aqui faria alguém aprovar uma variação achando que aprovou um post a
+ * mais — e descobrir na semana seguinte que os outros dois foram encerrados.
+ */
+export function contarAssuntos(candidatos: readonly PostCandidate[]): number {
+  return new Set(candidatos.map((c) => c.grupo)).size;
 }

@@ -50,7 +50,13 @@ export async function enviarParaAprovacao(options: EnvioOptions): Promise<EnvioR
   // Relidos do banco porque é o id da linha que vai no botão. Gerar o botão a
   // partir do que está em memória arriscaria mandar um id que não existe.
   const candidatos = await db
-    .select({ id: postCandidates.id, body: postCandidates.body })
+    .select({
+      id: postCandidates.id,
+      body: postCandidates.body,
+      themeGroup: postCandidates.themeGroup,
+      theme: postCandidates.theme,
+      angle: postCandidates.angle,
+    })
     .from(postCandidates)
     .where(and(eq(postCandidates.batchId, options.batchId), eq(postCandidates.status, "pending")))
     .orderBy(postCandidates.variantIndex);
@@ -59,9 +65,12 @@ export async function enviarParaAprovacao(options: EnvioOptions): Promise<EnvioR
 
   const paraEnvio: CandidatoParaEnvio[] = candidatos.map((c, i) => ({
     id: c.id,
-    // O ângulo não é persistido — ele serve à escolha de agora, não ao post.
-    // Se um dia a tela de edição precisar dele, aí vira coluna.
-    angulo: `opção ${String(i + 1)}`,
+    grupo: c.themeGroup,
+    // Os padrões cobrem os lotes gravados antes destas colunas existirem. Sem
+    // eles a mensagem sairia com "null" no lugar do assunto, que é pior do que
+    // um rótulo genérico — parece defeito e o dev não sabe se pode confiar.
+    tema: c.theme ?? `assunto ${String(c.themeGroup + 1)}`,
+    angulo: c.angle ?? `opção ${String(i + 1)}`,
     texto: c.body,
   }));
 

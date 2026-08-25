@@ -20,14 +20,19 @@
 import { timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { bindTelegramChat, redeemLinkCode } from "@commitpost/core/auth";
-import { decideCandidate, users, type ResultadoDecisao } from "@commitpost/core/db";
+import { fusoOuPadrao, opcaoPorId, opcoesDeAgendamento, rotularInstante } from "@commitpost/core/agenda";
+import { decideCandidate, users, type Decisao, type ResultadoDecisao } from "@commitpost/core/db";
+import { publicarNoLinkedIn, type ResultadoPublicacao } from "@commitpost/core/publicar";
 import {
   answerCallback,
+  buildKeyboard,
+  buildScheduleKeyboard,
   markDecided,
   parseCallbackData,
+  replaceKeyboard,
   sendMessage,
+  type ParsedCallback,
 } from "@commitpost/core/telegram";
-import { publicarNoLinkedIn, type ResultadoPublicacao } from "@/lib/publicar";
 import { db, env } from "@/lib/runtime";
 
 export const runtime = "nodejs";
@@ -174,7 +179,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const donos = await database
-    .select({ id: users.id, active: users.active })
+    .select({ id: users.id, active: users.active, timezone: users.timezone })
     .from(users)
     .where(eq(users.telegramChatId, chatId))
     .limit(1);
@@ -192,31 +197,110 @@ export async function POST(request: Request): Promise<Response> {
     return ok();
   }
 
+  const token = configuration.TELEGRAM_BOT_TOKEN;
+
+  // `menu` e `voltar` não decidem nada: trocam o teclado entre os dois níveis.
+  // Ficam antes de tudo porque não têm o que gravar, e passar por
+  // `decideCandidate` só para não fazer nada convidaria alguém a somar um
+  // efeito colateral ali no futuro.
+  if (clique.action === "menu" || clique.action === "voltar") {
+    await trocarTeclado(token, {
+      chatId,
+      messageId,
+      callbackId,
+      clique,
+      fuso: fusoOuPadrao(dono.timezone),
+    });
+    return ok();
+  }
+
+  const quando = horarioEscolhido(clique, fusoOuPadrao(dono.timezone));
+
+  // Slot que não existe é payload adulterado ou botão de uma mensagem antiga,
+  // cujos horários já passaram. Nos dois casos, não decidir é a resposta certa.
+  if (clique.action === "schedule" && quando === null) {
+    await tentarResponder(token, callbackId, "Esse horário não vale mais. Toque em Agendar de novo.");
+    return ok();
+  }
+
+  const acao: Decisao =
+    clique.action === "publish" ? "approve" : clique.action === "reject" ? "reject" : "schedule";
+
   const resultado = await decideCandidate(
     database,
     dono.id,
     clique.candidateId,
-    clique.action,
+    acao,
+    quando ?? undefined,
   );
 
-  // Publicar acontece AQUI, na aprovação, e não num passo depois: o ciclo
-  // seguinte é semanal, e adiar faria "aprovei hoje" virar "saiu na segunda
-  // que vem".
+  // Publicar acontece AQUI para "publicar agora", e não num passo depois: o
+  // ciclo seguinte é semanal, e adiar faria "aprovei hoje" virar "saiu na
+  // segunda que vem". O agendado é do workflow de hora em hora.
   const publicacao =
-    resultado.tipo === "aplicada" && clique.action === "approve"
-      ? await publicarNoLinkedIn(dono.id, clique.candidateId)
+    resultado.tipo === "aplicada" && acao === "approve"
+      ? await publicarNoLinkedIn({
+          db: database,
+          encryptionKey: configuration.TOKEN_ENCRYPTION_KEY,
+          userId: dono.id,
+          candidateId: clique.candidateId,
+        })
       : null;
 
-  await responderDecisao(configuration.TELEGRAM_BOT_TOKEN, {
+  await responderDecisao(token, {
     callbackId,
     chatId,
     messageId,
     resultado,
-    acao: clique.action,
+    acao,
     publicacao,
+    fuso: fusoOuPadrao(dono.timezone),
   });
 
   return ok();
+}
+
+/**
+ * O instante por trás do slot escolhido.
+ *
+ * Recalculado aqui a partir do índice, e não lido do botão. O `callback_data`
+ * é dado que veio de fora: uma data ali seria o cliente escolhendo quando um
+ * post vai ao ar, inclusive fora do horizonte que o sistema aceita.
+ */
+function horarioEscolhido(clique: ParsedCallback, fuso: string): Date | null {
+  if (clique.action !== "schedule" || clique.slot === null) return null;
+  return opcaoPorId(new Date(), fuso, clique.slot)?.quando ?? null;
+}
+
+/** Alterna a mesma mensagem entre "o que fazer" e "para quando". */
+async function trocarTeclado(
+  token: string,
+  ctx: {
+    chatId: string;
+    messageId: number | null;
+    callbackId: string;
+    clique: ParsedCallback;
+    fuso: string;
+  },
+): Promise<void> {
+  if (ctx.messageId === null) {
+    await tentarResponder(token, ctx.callbackId, "Não consegui abrir os horários.");
+    return;
+  }
+
+  const teclado =
+    ctx.clique.action === "menu"
+      ? buildScheduleKeyboard(ctx.clique.candidateId, opcoesDeAgendamento(new Date(), ctx.fuso))
+      : buildKeyboard(ctx.clique.candidateId);
+
+  try {
+    await replaceKeyboard(token, ctx.chatId, ctx.messageId, teclado);
+    await tentarResponder(token, ctx.callbackId, "");
+  } catch {
+    // Mensagem apagada, ou o mesmo teclado de novo — o Telegram recusa a
+    // edição idêntica. Nada foi decidido, então não há estado a consertar.
+    await tentarResponder(token, ctx.callbackId, "Não consegui abrir os horários.");
+  }
 }
 
 /**
@@ -233,11 +317,12 @@ async function responderDecisao(
     chatId: string;
     messageId: number | null;
     resultado: ResultadoDecisao;
-    acao: "approve" | "reject";
+    acao: Decisao;
     publicacao: ResultadoPublicacao | null;
+    fuso: string;
   },
 ): Promise<void> {
-  const { aviso, legenda } = descreverDecisao(ctx.resultado, ctx.acao, ctx.publicacao);
+  const { aviso, legenda } = descreverDecisao(ctx.resultado, ctx.acao, ctx.publicacao, ctx.fuso);
 
   await tentarResponder(token, ctx.callbackId, aviso);
 
@@ -285,13 +370,18 @@ async function tentarMarcar(
 
 function descreverDecisao(
   resultado: ResultadoDecisao,
-  acao: "approve" | "reject",
+  acao: Decisao,
   publicacao: ResultadoPublicacao | null,
+  fuso: string,
 ): { aviso: string; legenda: string | null } {
   if (resultado.tipo === "nao-encontrada") {
     // Mesma resposta para "não existe" e "não é seu". Distinguir os dois
     // transformaria o botão num oráculo de quais ids existem.
     return { aviso: "Este post não está mais disponível.", legenda: null };
+  }
+
+  if (resultado.tipo === "sem-horario") {
+    return { aviso: "Esse horário não vale mais. Toque em Agendar de novo.", legenda: null };
   }
 
   if (resultado.tipo === "ja-decidida") {
@@ -302,24 +392,35 @@ function descreverDecisao(
     return { aviso: "Recusado. Os outros continuam esperando.", legenda: "❌ recusado" };
   }
 
-  const outros =
+  // "Versões" e não "posts": o que foi encerrado são as outras redações DESTE
+  // assunto. Os posts dos outros assuntos continuam esperando decisão, e
+  // chamar tudo de "outros posts" faria o dev achar que perdeu o lote.
+  const outras =
     resultado.encerradas.length > 0
-      ? ` As outras ${String(resultado.encerradas.length)} foram encerradas.`
+      ? ` As outras ${String(resultado.encerradas.length)} versões deste assunto foram encerradas.`
       : "";
 
+  if (acao === "schedule" && resultado.agendadoPara !== null) {
+    const quando = rotularInstante(resultado.agendadoPara, fuso);
+    return {
+      aviso: `Agendado para ${quando}.${outras}`,
+      legenda: `🗓 ${quando}`,
+    };
+  }
+
   if (publicacao?.tipo === "publicado") {
-    return { aviso: `Publicado no LinkedIn.${outros}`, legenda: "🔗 publicado" };
+    return { aviso: `Publicado no LinkedIn.${outras}`, legenda: "🔗 publicado" };
   }
 
   if (publicacao?.tipo === "falhou") {
     // A legenda diz "aprovado", e não "publicado", porque foi isso que
     // aconteceu. Marcar como publicado o que não saiu seria a interface
     // mentindo sobre o estado — de novo.
-    return { aviso: `Aprovado, mas não saiu no LinkedIn.${outros}`, legenda: "✅ aprovado" };
+    return { aviso: `Aprovado, mas não saiu no LinkedIn.${outras}`, legenda: "✅ aprovado" };
   }
 
   return {
-    aviso: `Aprovado.${outros} Copie o texto e publique no LinkedIn.`,
+    aviso: `Aprovado.${outras} Copie o texto e publique no LinkedIn.`,
     legenda: "✅ aprovado",
   };
 }

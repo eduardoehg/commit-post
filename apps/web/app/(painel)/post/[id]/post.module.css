@@ -36,3 +36,40 @@
   gap: var(--e3);
   flex-wrap: wrap;
 }
+
+/* O campo de data e o botão lado a lado; empilham em tela estreita. */
+.agendamento {
+  display: flex;
+  gap: var(--e3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/*
+ * `datetime-local` desenha o próprio controle, e o padrão do navegador ignora
+ * a fonte e o tema da página — daí herdar as duas à mão. `color-scheme` é o
+ * que faz o seletor de calendário nascer escuro no tema escuro; sem ele o
+ * popup aparece branco em cima de fundo preto.
+ */
+.campoData {
+  flex: 1 1 14rem;
+  padding: var(--e2) var(--e3);
+  border: 1px solid var(--borda);
+  border-radius: var(--r1);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  font-size: var(--t-sm);
+  color-scheme: light dark;
+}
+
+.campoData:focus-visible {
+  outline: 2px solid var(--acao);
+  outline-offset: 1px;
+}
+
+.nota {
+  margin: var(--e3) 0 0;
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+}

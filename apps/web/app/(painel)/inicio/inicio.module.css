@@ -8,7 +8,7 @@
  */
 .filtros {
   display: flex;
-  gap: var(--e2);
+  gap: var(--e1);
   flex-wrap: nowrap;
   overflow-x: auto;
   margin-bottom: var(--e5);
@@ -19,14 +19,25 @@
 /*
  * Os botões não encolhem: um rótulo cortado é pior do que rolar.
  *
- * As medidas são apertadas de propósito — seis filtros com a contagem somam
- * quase exatamente a largura da coluna de conteúdo, e alguns pixels a mais
- * fariam aparecer uma barra de rolagem que não leva a lugar nenhum.
+ * As medidas são apertadas de propósito, e os números vêm de medição no
+ * navegador, não de estimativa. A coluna de conteúdo dá 688px (46rem menos o
+ * respiro lateral). Com SETE filtros — "Agendados" entrou na Fase 8 — a barra
+ * ocupa 632px com contagem de um dígito e 683px com dois: cabe numa linha em
+ * toda a faixa realista, com 5px sobrando no pior caso dela.
+ *
+ * Daí o padding curto, os espaçamentos mínimos e a contagem sem pílula: cada
+ * enfeite aqui custa largura que não existe. Passando de 99 num filtro são
+ * 733px e a barra ROLA em vez de quebrar — continua sendo UMA linha, que é o
+ * que impede o conteúdo de baixo de pular quando a janela muda de tamanho.
+ *
+ * Um oitavo filtro não cabe. Se um dia entrar, o caminho não é raspar mais
+ * pixel: é encurtar rótulo ou tirar a barra da coluna de texto, que existe
+ * para prosa ser legível e não para navegação.
  */
 .filtros > a {
   flex: none;
-  gap: var(--e1);
-  padding: var(--e2) var(--e3);
+  gap: 2px;
+  padding: var(--e2);
   font-size: var(--t-xs);
 }
 
@@ -84,19 +95,21 @@
  * dançarem de largura quando um passa de 9 para 10.
  */
 .contagem {
-  min-width: 1.1rem;
-  padding: 0 var(--e1);
-  border-radius: var(--r-pilula);
-  background: var(--superficie-2);
   color: var(--texto-fraco);
   font-size: var(--t-xs);
   font-variant-numeric: tabular-nums;
-  text-align: center;
 }
 
+/*
+ * No filtro ativo a contagem acompanha o texto, em vez de virar pílula âmbar.
+ *
+ * A pílula existia e saiu: com sete filtros ela custava a largura que faz a
+ * barra caber numa linha. E o âmbar já está na borda do filtro ativo — usá-lo
+ * duas vezes na mesma tela contraria a regra de um âmbar por tela.
+ */
 .filtros a[aria-current="page"] .contagem {
-  background: var(--acao);
-  color: var(--acao-texto);
+  color: var(--texto);
+  font-weight: 600;
 }
 
 /* Filtro sem nada não some — só para de disputar atenção. */
@@ -121,4 +134,19 @@
   display: flex;
   gap: var(--e2);
   flex-wrap: wrap;
+}
+
+/*
+ * A hora marcada, ao lado do selo.
+ *
+ * Cinza e sem âmbar de propósito: a regra da marca é um âmbar por tela, na
+ * ação principal. Aqui não há o que clicar — é informação, e informação que
+ * grita ensina o olho a ignorar a que importa.
+ */
+.agendado {
+  color: var(--texto-fraco);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid var(--borda);
+  padding-left: var(--e3);
 }

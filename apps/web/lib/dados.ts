@@ -104,6 +104,9 @@ export interface PostHistorico {
   janelaInicio: Date;
   janelaFim: Date;
   commits: number;
+  /** Preenchido só no status `scheduled`. */
+  agendadoPara: Date | null;
+  tema: string | null;
 }
 
 /**
@@ -152,6 +155,8 @@ export function historicoDe(userId: number, apenas?: string): Promise<PostHistor
       status: postCandidates.status,
       variante: postCandidates.variantIndex,
       decididoEm: postCandidates.decidedAt,
+      agendadoPara: postCandidates.scheduledFor,
+      tema: postCandidates.theme,
       criadoEm: postCandidates.createdAt,
       janelaInicio: postBatches.windowStart,
       janelaFim: postBatches.windowEnd,

@@ -83,6 +83,20 @@ export const users = pgTable(
      */
     role: text().notNull().default("dev"),
 
+    /**
+     * O fuso em que "9h" quer dizer nove da manhã para este dev.
+     *
+     * Existe por causa do agendamento, e sem ele o recurso não funciona: o
+     * servidor pensa em UTC, e um post marcado para as 9h sairia às 6h no
+     * Brasil. Vale só para INTERPRETAR a escolha e para EXIBIR a data — o que
+     * o banco guarda continua sendo UTC.
+     *
+     * O padrão é São Paulo porque é onde estão os devs de hoje; um padrão
+     * errado é mais fácil de perceber e corrigir do que uma coluna nula, que
+     * obrigaria cada leitura a decidir o que fazer sem fuso.
+     */
+    timezone: text().notNull().default("America/Sao_Paulo"),
+
     active: boolean().notNull().default(true),
     createdAt,
     updatedAt,
@@ -385,12 +399,20 @@ export const commits = pgTable(
 // Posts
 // ---------------------------------------------------------------------------
 
+/**
+ * `scheduled` é um estado terminal da DECISÃO e inicial da publicação: o dev
+ * já disse sim, só disse para depois. Por isso é diferente de `approved`, que
+ * significa "sai agora" — e a diferença importa, porque é `scheduled` que o
+ * workflow de hora em hora procura. Fossem o mesmo estado, republicaria o que
+ * já saiu ou publicaria antes da hora.
+ */
 export const postStatus = pgEnum("post_status", [
   "pending",
   "approved",
   "rejected",
   "published",
   "superseded",
+  "scheduled",
 ]);
 
 /**
@@ -440,8 +462,45 @@ export const postCandidates = pgTable(
     body: text().notNull(),
     editedBody: text("edited_body"),
 
+    /**
+     * Qual ASSUNTO do lote este candidato trata.
+     *
+     * É o que separa "três posts sobre três trabalhos" de "três redações do
+     * mesmo trabalho". Aprovar encerra as irmãs de **grupo**, não as do lote:
+     * dentro de um grupo os textos contam a mesma história e só um pode sair;
+     * entre grupos são conteúdos distintos e todos podem.
+     *
+     * Sem esta coluna as duas situações seriam indistinguíveis, e o sistema
+     * teria que escolher entre nunca deixar publicar mais de um (o que o dev
+     * não quer) ou deixar publicar três versões da mesma coisa (que é pior).
+     */
+    themeGroup: integer("theme_group").notNull().default(0),
+
+    /** Rótulo curto do assunto, para o dev escolher sem reler os três textos. */
+    theme: text(),
+
+    /**
+     * Em que esta versão difere das outras DO MESMO assunto.
+     *
+     * Não era coluna até a Fase 8 — o texto dizia "opção 1, opção 2", o que
+     * bastava quando as variações eram indistinguíveis de propósito. Com
+     * agrupamento, é ele que responde a pergunta que o dev passa a ter:
+     * "por que estes dois são do mesmo assunto e o terceiro não?".
+     */
+    angle: text(),
+
     status: postStatus().notNull().default("pending"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
+
+    /**
+     * Quando este post deve ir ao ar. Preenchido só no status `scheduled`.
+     *
+     * Guardado em UTC, como todo timestamp aqui. O fuso de quem escolheu vive
+     * em `users.timezone` e serve para INTERPRETAR "9h" na hora de agendar e
+     * para EXIBIR depois — nunca para armazenar. Guardar hora local seria
+     * guardar um número que muda de significado se a pessoa viajar.
+     */
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
 
     /**
      * A mensagem do Telegram onde este candidato foi enviado.
@@ -459,6 +518,10 @@ export const postCandidates = pgTable(
   (t) => [
     uniqueIndex("post_candidates_batch_variant_idx").on(t.batchId, t.variantIndex),
     index("post_candidates_user_status_idx").on(t.userId, t.status),
+    // O workflow de hora em hora pergunta "o que venceu?" para o sistema
+    // inteiro, sem filtrar por dev — este índice é o que impede essa pergunta
+    // de virar varredura da tabela toda a cada hora.
+    index("post_candidates_due_idx").on(t.status, t.scheduledFor),
   ],
 );
 
