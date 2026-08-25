@@ -1,8 +1,33 @@
+/*
+ * Uma linha só.
+ *
+ * `nowrap` com rolagem em vez de `wrap`: seis filtros quebrando em duas linhas
+ * fazem a barra mudar de altura conforme a largura da janela, e o conteúdo
+ * abaixo pula junto. Rolar horizontalmente é raro — só acontece em tela bem
+ * estreita — e não mexe no resto da página quando acontece.
+ */
 .filtros {
   display: flex;
   gap: var(--e2);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
   margin-bottom: var(--e5);
+  padding-bottom: var(--e1);
+  scrollbar-width: thin;
+}
+
+/*
+ * Os botões não encolhem: um rótulo cortado é pior do que rolar.
+ *
+ * As medidas são apertadas de propósito — seis filtros com a contagem somam
+ * quase exatamente a largura da coluna de conteúdo, e alguns pixels a mais
+ * fariam aparecer uma barra de rolagem que não leva a lugar nenhum.
+ */
+.filtros > a {
+  flex: none;
+  gap: var(--e1);
+  padding: var(--e2) var(--e3);
+  font-size: var(--t-xs);
 }
 
 /*
@@ -59,7 +84,7 @@
  * dançarem de largura quando um passa de 9 para 10.
  */
 .contagem {
-  min-width: 1.35rem;
+  min-width: 1.1rem;
   padding: 0 var(--e1);
   border-radius: var(--r-pilula);
   background: var(--superficie-2);

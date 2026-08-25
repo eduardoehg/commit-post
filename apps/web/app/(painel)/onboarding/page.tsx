@@ -78,6 +78,7 @@ export default async function PaginaIntroducao({
             )}
             {passo.id === "telegram" && (
               <SecaoTelegram
+                voltar="/onboarding"
                 vinculado={user.telegramChatId !== null}
                 link={telegram.link}
                 botDisponivel={telegram.botDisponivel}

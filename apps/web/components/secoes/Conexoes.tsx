@@ -19,7 +19,11 @@ export function SecaoColaboracoes({
   disponivel: boolean;
 }) {
   if (!disponivel) {
-    return <p className={estilos.indisponivel}>O operador ainda não configurou este caminho.</p>;
+    return (
+      <p className={estilos.indisponivel}>
+        O operador ainda não configurou este caminho.
+      </p>
+    );
   }
 
   return (
@@ -27,15 +31,20 @@ export function SecaoColaboracoes({
       <details className={estilos.detalhes}>
         <summary>O que exatamente você está concedendo</summary>
         <p>
-          Este passo usa um acesso do GitHub que dá <strong>leitura e escrita</strong> em
-          todos os repositórios que você enxerga. Não é escolha nossa: o GitHub não
-          oferece acesso somente-leitura a repositório privado por este caminho.
+          Este passo usa um acesso do GitHub que dá{" "}
+          <strong>leitura e escrita</strong> em todos os repositórios que você
+          enxerga. Não é escolha nossa: o GitHub não oferece acesso
+          somente-leitura a repositório privado por este caminho.
         </p>
         <p>
-          O que fazemos com isso: só leitura, e nada além de listar commits seus. O
-          sistema não tem nenhuma função que escreva no GitHub. O acesso fica cifrado
-          no banco, e você revoga quando quiser em{" "}
-          <a href="https://github.com/settings/applications" target="_blank" rel="noreferrer">
+          O que fazemos com isso: só leitura, e nada além de listar commits
+          seus. O sistema não tem nenhuma função que escreva no GitHub. O acesso
+          fica cifrado no banco, e você revoga quando quiser em{" "}
+          <a
+            href="https://github.com/settings/applications"
+            target="_blank"
+            rel="noreferrer"
+          >
             aplicativos autorizados
           </a>
           .
@@ -50,17 +59,20 @@ export function SecaoColaboracoes({
       </Acao>
 
       <Nota>
-        Pule se todos os seus commits estão em contas onde você instalou o CommitPost.
+        Pule se todos os seus commits estão em contas onde você instalou o
+        CommitPost.
       </Nota>
     </>
   );
 }
 
 export function SecaoTelegram({
+  voltar,
   vinculado,
   link,
   botDisponivel,
 }: {
+  voltar: string;
   vinculado: boolean;
   link: string | null;
   botDisponivel: boolean;
@@ -69,13 +81,14 @@ export function SecaoTelegram({
     return (
       <>
         <form action={desvincularTelegram}>
+          <input type="hidden" name="voltar" value={voltar} />
           <Botao type="submit" tom="perigo">
             Desvincular este Telegram
           </Botao>
         </form>
         <Nota>
-          É por onde os posts chegam para aprovação. Desvincular para o envio até você
-          vincular de novo.
+          É por onde os posts chegam para aprovação. Desvincular para o envio
+          até você vincular de novo.
         </Nota>
       </>
     );
@@ -84,8 +97,8 @@ export function SecaoTelegram({
   if (!botDisponivel || link === null) {
     return (
       <p className={estilos.indisponivel}>
-        Não foi possível falar com o bot do Telegram. Avise o operador — o token do bot
-        provavelmente está errado.
+        Não foi possível falar com o bot do Telegram. Avise o operador — o token
+        do bot provavelmente está errado.
       </p>
     );
   }
@@ -96,8 +109,8 @@ export function SecaoTelegram({
         Abrir o bot e vincular
       </Acao>
       <Nota>
-        O link vale 15 minutos e serve uma vez. Basta abrir e tocar em iniciar — você não
-        precisa digitar nada.
+        O link vale 15 minutos e serve uma vez. Basta abrir e tocar em iniciar —
+        você não precisa digitar nada.
       </Nota>
     </>
   );
@@ -115,18 +128,23 @@ export function SecaoLinkedIn({
   if (!disponivel) {
     return (
       <p className={estilos.indisponivel}>
-        A publicação automática ainda está em aprovação no LinkedIn. Até lá, o post
-        aprovado chega pronto no Telegram para você copiar.
+        A publicação automática ainda está em aprovação no LinkedIn. Até lá, o
+        post aprovado chega pronto no Telegram para você copiar.
       </p>
     );
   }
 
   const dias =
-    venceEm === null ? null : Math.round((venceEm.getTime() - Date.now()) / 86_400_000);
+    venceEm === null
+      ? null
+      : Math.round((venceEm.getTime() - Date.now()) / 86_400_000);
 
   return (
     <>
-      <Acao href="/api/auth/linkedin/authorize" tom={conectado ? "discreto" : "principal"}>
+      <Acao
+        href="/api/auth/linkedin/authorize"
+        tom={conectado ? "discreto" : "principal"}
+      >
         {conectado ? "Reconectar" : "Conectar o LinkedIn"}
       </Acao>
 

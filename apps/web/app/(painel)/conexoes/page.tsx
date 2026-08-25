@@ -57,7 +57,7 @@ export default async function PaginaConexoes({
         titulo="E-mails de autor"
         descricao="É por eles que o sistema reconhece um commit como seu. Chegam sozinhos da sua conta do GitHub — só mexa aqui se você assina commits de trabalho com um endereço que não está lá."
       >
-        <SecaoEmails emails={emails} />
+        <SecaoEmails voltar="/conexoes" emails={emails} />
       </Cartao>
 
       <Cartao
@@ -75,6 +75,7 @@ export default async function PaginaConexoes({
         descricao="É por onde você aprova ou recusa cada post. Sem isso, nada é publicado."
       >
         <SecaoTelegram
+                voltar="/conexoes"
           vinculado={user.telegramChatId !== null}
           link={telegram.link}
           botDisponivel={telegram.botDisponivel}

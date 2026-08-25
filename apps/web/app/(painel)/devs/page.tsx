@@ -65,6 +65,7 @@ export default async function PaginaDevs({
 
       <Cartao titulo="Liberar acesso">
         <form action={liberarDev}>
+          <input type="hidden" name="voltar" value="/devs" />
           <LinhaForm>
             <Campo
               type="text"
@@ -108,6 +109,7 @@ export default async function PaginaDevs({
 
                 {podeRevogar(c) ? (
                   <form action={revogarDev}>
+                    <input type="hidden" name="voltar" value="/devs" />
                     <input type="hidden" name="login" value={c.login} />
                     <Botao type="submit" tom="perigo">
                       Remover

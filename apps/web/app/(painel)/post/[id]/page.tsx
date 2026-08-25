@@ -19,7 +19,7 @@ import { notFound } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { postBatches, postCandidates } from "@commitpost/core/db";
 import { Botao, Cartao, Recado, Selo, TituloPagina, type EstadoSelo } from "@/components/ui";
-import { aprovarPost, recusarPost, salvarTexto } from "@/app/(painel)/acoes";
+import { aprovarPost, publicarAgora, recusarPost, salvarTexto } from "@/app/(painel)/acoes";
 import { db } from "@/lib/runtime";
 import { carregarContexto } from "@/lib/painel";
 import { primeiroParam } from "@/lib/params";
@@ -74,6 +74,11 @@ export default async function PaginaPost({
   const texto = post.editedBody ?? post.body;
   const editado = post.editedBody !== null && post.editedBody !== post.body;
   const decidivel = post.status === "pending";
+  // Aprovado e não publicado: ou a publicação falhou, ou o LinkedIn não estava
+  // conectado na hora. Nos dois casos o post fica sem nenhum botão que o
+  // empurre — este é ele.
+  const publicavel = post.status === "approved";
+  const voltar = `/post/${String(post.id)}`;
 
   const sp = await searchParams;
   const erro = primeiroParam(sp["erro"]);
@@ -105,6 +110,7 @@ export default async function PaginaPost({
       >
         <form action={salvarTexto}>
           <input type="hidden" name="id" value={post.id} />
+          <input type="hidden" name="voltar" value={voltar} />
           <textarea
             name="texto"
             className={estilos.editor}
@@ -132,23 +138,40 @@ export default async function PaginaPost({
       {decidivel && (
         <Cartao
           titulo="Decidir"
-          descricao="Aprovar encerra as outras versões deste mesmo lote — elas contam o mesmo trabalho."
+          descricao="Aprovar publica no LinkedIn e encerra as outras versões deste mesmo lote — elas contam o mesmo trabalho."
         >
           <div className={estilos.decisao}>
             <form action={aprovarPost}>
               <input type="hidden" name="id" value={post.id} />
+              <input type="hidden" name="voltar" value={voltar} />
               <Botao type="submit" tom="principal">
-                Aprovar
+                Aprovar e publicar
               </Botao>
             </form>
 
             <form action={recusarPost}>
               <input type="hidden" name="id" value={post.id} />
+              <input type="hidden" name="voltar" value={voltar} />
               <Botao type="submit" tom="perigo">
                 Recusar
               </Botao>
             </form>
           </div>
+        </Cartao>
+      )}
+
+      {publicavel && (
+        <Cartao
+          titulo="Ainda não foi ao ar"
+          descricao="Este post está aprovado mas não saiu no LinkedIn — ou a publicação falhou, ou o LinkedIn não estava conectado na hora."
+        >
+          <form action={publicarAgora}>
+            <input type="hidden" name="id" value={post.id} />
+            <input type="hidden" name="voltar" value={voltar} />
+            <Botao type="submit" tom="principal">
+              Publicar agora
+            </Botao>
+          </form>
         </Cartao>
       )}
     </>

@@ -40,7 +40,7 @@ export default async function PaginaRepositorios({
         titulo={`${String(ativos)} de ${String(repos.length)} na coleta`}
         descricao="Aparecem sozinhos quando você conecta uma conta do GitHub ou concede colaborações."
       >
-        <SecaoRepositorios repos={repos} />
+        <SecaoRepositorios voltar="/repositorios" repos={repos} />
       </Cartao>
     </>
   );

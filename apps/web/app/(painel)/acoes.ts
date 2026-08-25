@@ -39,22 +39,43 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_TERM_LENGTH = 2;
 const MAX_TERM_LENGTH = 120;
 
-function done(params: Record<string, string> = {}): never {
-  revalidatePath("/onboarding");
-  const query = new URLSearchParams(params).toString();
-  redirect(query === "" ? "/onboarding" : `/onboarding?${query}`);
-}
-
 function field(formData: FormData, name: string): string {
   const value = formData.get(name);
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * Volta para a tela de onde a ação foi disparada.
+ *
+ * O destino vem do formulário porque as mesmas seções são desenhadas em telas
+ * diferentes — a do Telegram aparece na introdução e em Conexões. Antes tudo
+ * voltava para a introdução, e "remover um repositório" terminava numa tela
+ * que não tem repositório nenhum.
+ *
+ * O valor é validado: destino vindo de formulário é entrada de fora, e sem a
+ * checagem seria redirecionamento aberto — bastaria alguém montar um `<form>`
+ * apontando para outro site.
+ */
+function done(voltar: string, params: Record<string, string> = {}): never {
+  const seguro = /^\/[a-zA-Z0-9/_-]*$/.test(voltar) ? voltar : "/onboarding";
+
+  revalidatePath(seguro);
+  const query = new URLSearchParams(params).toString();
+  redirect(query === "" ? seguro : `${seguro}?${query}`);
+}
+
+/** O destino declarado pelo formulário, ou a introdução. */
+function voltarPara(formData: FormData): string {
+  const valor = field(formData, "voltar");
+  return valor === "" ? "/onboarding" : valor;
+}
+
 export async function adicionarEmail(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
   const email = field(formData, "email").toLowerCase();
 
-  if (!EMAIL_RE.test(email)) done({ erro: "Isso não parece um e-mail." });
+  if (!EMAIL_RE.test(email)) done(voltar, { erro: "Isso não parece um e-mail." });
 
   const inserted = await db()
     .insert(userEmails)
@@ -72,7 +93,7 @@ export async function adicionarEmail(formData: FormData): Promise<void> {
       .where(and(eq(userEmails.userId, user.id), eq(userEmails.email, email)));
 
     if (meus.length === 0) {
-      done({
+      done(voltar, {
         erro:
           "Este e-mail já está registrado para outro dev. Cada e-mail de autor " +
           "pertence a uma pessoa só — senão o mesmo commit viraria post duas vezes.",
@@ -80,30 +101,32 @@ export async function adicionarEmail(formData: FormData): Promise<void> {
     }
   }
 
-  done();
+  done(voltar);
 }
 
 export async function removerEmail(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
   const id = Number(field(formData, "id"));
-  if (!Number.isInteger(id)) done({ erro: "Registro inválido." });
+  if (!Number.isInteger(id)) done(voltar, { erro: "Registro inválido." });
 
   await db()
     .delete(userEmails)
     .where(and(eq(userEmails.userId, user.id), eq(userEmails.id, id)));
 
-  done();
+  done(voltar);
 }
 
 export async function adicionarTermo(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
   const term = field(formData, "termo");
 
   if (term.length < MIN_TERM_LENGTH) {
-    done({ erro: `Use ao menos ${String(MIN_TERM_LENGTH)} caracteres.` });
+    done(voltar, { erro: `Use ao menos ${String(MIN_TERM_LENGTH)} caracteres.` });
   }
   if (term.length > MAX_TERM_LENGTH) {
-    done({ erro: "Termo longo demais — use o nome, não a frase inteira." });
+    done(voltar, { erro: "Termo longo demais — use o nome, não a frase inteira." });
   }
 
   await db()
@@ -111,51 +134,55 @@ export async function adicionarTermo(formData: FormData): Promise<void> {
     .values({ userId: user.id, term, source: "manual" })
     .onConflictDoNothing();
 
-  done();
+  done(voltar);
 }
 
 export async function removerTermo(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
   const id = Number(field(formData, "id"));
-  if (!Number.isInteger(id)) done({ erro: "Registro inválido." });
+  if (!Number.isInteger(id)) done(voltar, { erro: "Registro inválido." });
 
   await db()
     .delete(deniedTerms)
     .where(and(eq(deniedTerms.userId, user.id), eq(deniedTerms.id, id)));
 
-  done();
+  done(voltar);
 }
 
-export async function desvincularTelegram(): Promise<void> {
+export async function desvincularTelegram(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
 
   await db()
     .update(users)
     .set({ telegramChatId: null, updatedAt: new Date() })
     .where(eq(users.id, user.id));
 
-  done({ aviso: "Telegram desvinculado. Você não receberá posts até vincular de novo." });
+  done(voltar, { aviso: "Telegram desvinculado. Você não receberá posts até vincular de novo." });
 }
 
 export async function alternarRepo(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
   const id = Number(field(formData, "id"));
-  if (!Number.isInteger(id)) done({ erro: "Registro inválido." });
+  if (!Number.isInteger(id)) done(voltar, { erro: "Registro inválido." });
 
   await setRepoActive(db(), user.id, id, field(formData, "ativo") === "1");
-  done();
+  done(voltar);
 }
 
 export async function renomearRepo(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
   const id = Number(field(formData, "id"));
-  if (!Number.isInteger(id)) done({ erro: "Registro inválido." });
+  if (!Number.isInteger(id)) done(voltar, { erro: "Registro inválido." });
 
   const apelido = field(formData, "apelido");
-  if (apelido === "") done({ erro: "O apelido não pode ficar vazio." });
+  if (apelido === "") done(voltar, { erro: "O apelido não pode ficar vazio." });
 
   await renameRepo(db(), user.id, id, apelido);
-  done();
+  done(voltar);
 }
 
 // ---------------------------------------------------------------------------
@@ -168,45 +195,47 @@ export async function renomearRepo(formData: FormData): Promise<void> {
  * porta. Uma Server Action é um endpoint como qualquer outro — quem souber o
  * nome dela pode chamá-la sem nunca ter visto o menu.
  */
-async function exigirDono(): Promise<{ id: number }> {
+async function exigirDono(voltar: string): Promise<{ id: number }> {
   const user = await requireUser();
   if (user.role !== "owner") {
-    done({ erro: "Só o dono do sistema pode liberar acesso." });
+    done(voltar, { erro: "Só o dono do sistema pode liberar acesso." });
   }
   return { id: user.id };
 }
 
 export async function liberarDev(formData: FormData): Promise<void> {
-  const dono = await exigirDono();
+  const voltar = voltarPara(formData);
+  const dono = await exigirDono(voltar);
   const login = normalizeLogin(field(formData, "login"));
 
   if (!/^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/.test(login)) {
     // A regra é a do próprio GitHub: letras, números e hífen que não repete
     // nem fica na ponta, até 39 caracteres. Validar aqui evita convidar um
     // login que nunca poderá existir e ficar esperando alguém que não vem.
-    done({ erro: "Isso não parece um login do GitHub." });
+    done(voltar, { erro: "Isso não parece um login do GitHub." });
   }
 
   await grantAccess(db(), login, dono.id);
-  done({ aviso: `${login} pode entrar. Mande o link do sistema para ele.` });
+  done(voltar, { aviso: `${login} pode entrar. Mande o link do sistema para ele.` });
 }
 
 export async function revogarDev(formData: FormData): Promise<void> {
-  await exigirDono();
+  const voltar = voltarPara(formData);
+  await exigirDono(voltar);
   const login = normalizeLogin(field(formData, "login"));
 
   const alvo = (await listAccess(db())).find((c) => c.login === login);
-  if (alvo === undefined) done({ erro: "Este login não está na lista." });
+  if (alvo === undefined) done(voltar, { erro: "Este login não está na lista." });
 
   if (!podeRevogar(alvo)) {
     // Sem esta regra um clique deixaria o sistema sem ninguém capaz de
     // convidar, e o caminho de volta seria editar variável de ambiente na
     // Vercel — que é justamente o que esta tela existe para evitar.
-    done({ erro: "O dono do sistema não pode ser removido." });
+    done(voltar, { erro: "O dono do sistema não pode ser removido." });
   }
 
   await revokeAccess(db(), login);
-  done({ aviso: `${login} perdeu o acesso e as sessões dele caem na próxima requisição.` });
+  done(voltar, { aviso: `${login} perdeu o acesso e as sessões dele caem na próxima requisição.` });
 }
 
 // ---------------------------------------------------------------------------
@@ -222,12 +251,13 @@ export async function revogarDev(formData: FormData): Promise<void> {
  */
 export async function salvarTexto(formData: FormData): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
   const id = Number(field(formData, "id"));
-  if (!Number.isSafeInteger(id) || id <= 0) done({ erro: "Post inválido." });
+  if (!Number.isSafeInteger(id) || id <= 0) done(voltar, { erro: "Post inválido." });
 
   const texto = field(formData, "texto");
-  if (texto === "") done({ erro: "O texto não pode ficar vazio." });
-  if (texto.length > 3000) done({ erro: "O LinkedIn não aceita mais de 3000 caracteres." });
+  if (texto === "") done(voltar, { erro: "O texto não pode ficar vazio." });
+  if (texto.length > 3000) done(voltar, { erro: "O LinkedIn não aceita mais de 3000 caracteres." });
 
   const alterados = await db()
     .update(postCandidates)
@@ -243,23 +273,24 @@ export async function salvarTexto(formData: FormData): Promise<void> {
     )
     .returning({ id: postCandidates.id });
 
-  if (alterados.length === 0) done({ erro: "Este post não está mais aberto para edição." });
-  done({ aviso: "Texto salvo." });
+  if (alterados.length === 0) done(voltar, { erro: "Este post não está mais aberto para edição." });
+  done(voltar, { aviso: "Texto salvo." });
 }
 
 async function decidirPeloPainel(formData: FormData, decisao: "approve" | "reject"): Promise<void> {
   const user = await requireUser();
+  const voltar = voltarPara(formData);
   const id = Number(field(formData, "id"));
-  if (!Number.isSafeInteger(id) || id <= 0) done({ erro: "Post inválido." });
+  if (!Number.isSafeInteger(id) || id <= 0) done(voltar, { erro: "Post inválido." });
 
   // A MESMA função que o webhook do Telegram usa. Duas implementações da regra
   // "aprovar encerra as irmãs" divergiriam, e a errada seria a menos testada.
   const resultado = await decideCandidate(db(), user.id, id, decisao);
 
-  if (resultado.tipo === "nao-encontrada") done({ erro: "Este post não está mais disponível." });
-  if (resultado.tipo === "ja-decidida") done({ erro: "Este post já tinha sido decidido." });
+  if (resultado.tipo === "nao-encontrada") done(voltar, { erro: "Este post não está mais disponível." });
+  if (resultado.tipo === "ja-decidida") done(voltar, { erro: "Este post já tinha sido decidido." });
 
-  if (decisao === "reject") done({ aviso: "Recusado. As outras versões continuam esperando." });
+  if (decisao === "reject") done(voltar, { aviso: "Recusado. As outras versões continuam esperando." });
 
   const outras =
     resultado.tipo === "aplicada" && resultado.encerradas.length > 0
@@ -271,17 +302,17 @@ async function decidirPeloPainel(formData: FormData, decisao: "approve" | "rejec
   const publicacao = await publicarNoLinkedIn(user.id, id);
 
   if (publicacao.tipo === "publicado") {
-    done({ aviso: `Publicado no LinkedIn.${outras} ${publicacao.url}` });
+    done(voltar, { aviso: `Publicado no LinkedIn.${outras} ${publicacao.url}` });
   }
 
   if (publicacao.tipo === "falhou") {
     // Aprovado continua aprovado: o LinkedIn estar fora não é motivo para
     // desfazer a decisão de quem aprovou. O texto segue disponível para
     // copiar, e a tela diz o que houve.
-    done({ erro: `Aprovado, mas não saiu no LinkedIn: ${publicacao.motivo}` });
+    done(voltar, { erro: `Aprovado, mas não saiu no LinkedIn: ${publicacao.motivo}` });
   }
 
-  done({ aviso: `Aprovado.${outras} Copie o texto e publique no LinkedIn.` });
+  done(voltar, { aviso: `Aprovado.${outras} Copie o texto e publique no LinkedIn.` });
 }
 
 export async function aprovarPost(formData: FormData): Promise<void> {
@@ -290,4 +321,34 @@ export async function aprovarPost(formData: FormData): Promise<void> {
 
 export async function recusarPost(formData: FormData): Promise<void> {
   await decidirPeloPainel(formData, "reject");
+}
+
+/**
+ * Publicar um post que já foi aprovado.
+ *
+ * Existe por dois motivos que são o mesmo: a publicação acontece na aprovação,
+ * e ela pode falhar. Sem este caminho, um post aprovado que não saiu — porque
+ * o LinkedIn estava fora, porque o acesso venceu, porque a versão da API
+ * mudou — ficaria preso em `approved` para sempre, sem nenhum botão que o
+ * empurre.
+ *
+ * Também é o único jeito de testar a publicação sem esperar o próximo ciclo.
+ */
+export async function publicarAgora(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const voltar = voltarPara(formData);
+  const id = Number(field(formData, "id"));
+  if (!Number.isSafeInteger(id) || id <= 0) done(voltar, { erro: "Post inválido." });
+
+  const publicacao = await publicarNoLinkedIn(user.id, id);
+
+  if (publicacao.tipo === "sem-linkedin") {
+    done(voltar, { erro: "Conecte o LinkedIn em Conexões antes de publicar." });
+  }
+
+  if (publicacao.tipo === "falhou") {
+    done(voltar, { erro: `Não saiu no LinkedIn: ${publicacao.motivo}` });
+  }
+
+  done(voltar, { aviso: `Publicado. ${publicacao.url}` });
 }

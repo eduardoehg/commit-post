@@ -43,7 +43,7 @@ export default async function PaginaPalavras({
       </Recado>
 
       <Cartao titulo={`${String(termos.length)} palavra(s)`}>
-        <SecaoPalavras termos={termos} />
+        <SecaoPalavras voltar="/palavras" termos={termos} />
       </Cartao>
     </>
   );

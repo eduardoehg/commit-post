@@ -26,9 +26,19 @@ export interface RepoLinha {
   active: boolean;
 }
 
-export function SecaoRepositorios({ repos }: { repos: readonly RepoLinha[] }) {
+export function SecaoRepositorios({
+  voltar,
+  repos,
+}: {
+  voltar: string;
+  repos: readonly RepoLinha[];
+}) {
   if (repos.length === 0) {
-    return <Vazio>Os repositórios aparecem aqui depois que você conectar o GitHub.</Vazio>;
+    return (
+      <Vazio>
+        Os repositórios aparecem aqui depois que você conectar o GitHub.
+      </Vazio>
+    );
   }
 
   return (
@@ -37,6 +47,7 @@ export function SecaoRepositorios({ repos }: { repos: readonly RepoLinha[] }) {
         {repos.map((r) => (
           <Item key={r.id}>
             <form action={renomearRepo} className={estilos.linhaRepo}>
+              <input type="hidden" name="voltar" value={voltar} />
               <input type="hidden" name="id" value={r.id} />
               <Campo
                 type="text"
@@ -52,6 +63,7 @@ export function SecaoRepositorios({ repos }: { repos: readonly RepoLinha[] }) {
             </form>
 
             <form action={alternarRepo}>
+              <input type="hidden" name="voltar" value={voltar} />
               <input type="hidden" name="id" value={r.id} />
               <input type="hidden" name="ativo" value={r.active ? "0" : "1"} />
               <Botao type="submit" tom={r.active ? "perigo" : "discreto"}>
@@ -63,9 +75,9 @@ export function SecaoRepositorios({ repos }: { repos: readonly RepoLinha[] }) {
       </Lista>
 
       <Nota>
-        Um repositório desligado não é consultado — nem os commits dele são lidos. O
-        apelido aparece na mensagem de aprovação no Telegram, então não use o nome do
-        cliente.
+        Um repositório desligado não é consultado — nem os commits dele são
+        lidos. O apelido aparece na mensagem de aprovação no Telegram, então não
+        use o nome do cliente.
       </Nota>
     </>
   );
@@ -77,7 +89,13 @@ export interface TermoLinha {
   source: string;
 }
 
-export function SecaoPalavras({ termos }: { termos: readonly TermoLinha[] }) {
+export function SecaoPalavras({
+  voltar,
+  termos,
+}: {
+  voltar: string;
+  termos: readonly TermoLinha[];
+}) {
   const automaticos = termos.filter((t) => t.source === "auto").length;
 
   return (
@@ -90,9 +108,12 @@ export function SecaoPalavras({ termos }: { termos: readonly TermoLinha[] }) {
             <Item key={t.id}>
               <span className={estilos.quebra}>
                 {t.term}
-                {t.source === "auto" && <span className={estilos.secundario}> · sugerido</span>}
+                {t.source === "auto" && (
+                  <span className={estilos.secundario}> · sugerido</span>
+                )}
               </span>
               <form action={removerTermo}>
+                <input type="hidden" name="voltar" value={voltar} />
                 <input type="hidden" name="id" value={t.id} />
                 <Botao type="submit" tom="perigo">
                   Remover
@@ -104,6 +125,7 @@ export function SecaoPalavras({ termos }: { termos: readonly TermoLinha[] }) {
       )}
 
       <form action={adicionarTermo}>
+        <input type="hidden" name="voltar" value={voltar} />
         <LinhaForm>
           <Campo
             type="text"
@@ -119,9 +141,10 @@ export function SecaoPalavras({ termos }: { termos: readonly TermoLinha[] }) {
       </form>
 
       <Nota>
-        {automaticos > 0 && `${String(automaticos)} vieram dos seus repositórios. `}
-        Termos com menos de 3 letras são ignorados pelo filtro, e a comparação é por
-        palavra inteira.
+        {automaticos > 0 &&
+          `${String(automaticos)} vieram dos seus repositórios. `}
+        Termos com menos de 3 letras são ignorados pelo filtro, e a comparação é
+        por palavra inteira.
       </Nota>
     </>
   );
