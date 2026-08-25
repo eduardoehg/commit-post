@@ -214,9 +214,94 @@ export function textoExpiracao(estado: EstadoExpiracao): string {
   return `O acesso ao LinkedIn vence em ${String(estado.diasRestantes)} dia(s). Reconecte em Conexões — ele não se renova sozinho.`;
 }
 
-export function publishPost(): Promise<never> {
-  // Fase 7, segunda metade: POST no endpoint de posts com o URN do autor.
-  // Separado da conexão de propósito — conectar e publicar falham por motivos
-  // diferentes, e misturar os dois esconde qual dos dois quebrou.
-  throw new Error("Publicação ainda não implementada — a conexão já funciona.");
+// ---------------------------------------------------------------------------
+// Publicação
+// ---------------------------------------------------------------------------
+
+/**
+ * Versão da API do LinkedIn.
+ *
+ * O formato é `AAAAMM` e cada versão vale cerca de um ano. Ela vive numa
+ * constante, e não numa variável de ambiente, porque trocá-la é uma decisão de
+ * código — a forma do payload muda junto, e um número novo com o corpo antigo
+ * falha de um jeito difícil de ler.
+ *
+ * Se o LinkedIn recusar com 426, é ESTE valor que precisa subir.
+ */
+export const API_VERSION = "202508";
+
+export interface PostPublicado {
+  /** URN devolvido pelo LinkedIn, ex.: `urn:li:share:7123...`. */
+  urn: string;
+  url: string;
+}
+
+/**
+ * Publica no perfil do membro.
+ *
+ * `PUBLISHED` e `PUBLIC` são explícitos de propósito: o padrão de rascunho ou
+ * de visibilidade restrita transformaria "aprovei" em "não saiu", e o dev só
+ * descobriria olhando o próprio perfil.
+ *
+ * O texto vai como está. Nada de escapar ou reformatar aqui — ele já
+ * atravessou as três barreiras, e mexer nele nesta altura significaria
+ * publicar algo diferente do que a pessoa aprovou.
+ */
+export async function publishPost(options: {
+  accessToken: string;
+  /** `urn:li:person:<sub>` — ver `memberUrn`. */
+  authorUrn: string;
+  texto: string;
+}): Promise<PostPublicado> {
+  const response = await fetch(`${API}/rest/posts`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${options.accessToken}`,
+      "Content-Type": "application/json",
+      "LinkedIn-Version": API_VERSION,
+      "X-Restli-Protocol-Version": "2.0.0",
+    },
+    body: JSON.stringify({
+      author: options.authorUrn,
+      commentary: options.texto,
+      visibility: "PUBLIC",
+      distribution: {
+        feedDistribution: "MAIN_FEED",
+        targetEntities: [],
+        thirdPartyDistributionChannels: [],
+      },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    }),
+  });
+
+  if (!response.ok) {
+    // O corpo da resposta vai na mensagem porque é onde o LinkedIn diz o que
+    // está errado — versão, escopo, formato. Sem ele sobra um número de status
+    // e uma tarde de tentativa e erro.
+    const detalhe = (await response.text()).slice(0, 400);
+    throw new LinkedInError(
+      response.status === 426
+        ? `O LinkedIn recusou a versão ${API_VERSION} da API. Atualize API_VERSION. ${detalhe}`
+        : `O LinkedIn recusou a publicação (${String(response.status)}). ${detalhe}`,
+      response.status,
+    );
+  }
+
+  // O id vem no cabeçalho, não no corpo: a resposta de criação do LinkedIn é
+  // vazia. Sem ele não há como montar o link nem registrar o que foi ao ar.
+  const urn = response.headers.get("x-restli-id") ?? response.headers.get("x-linkedin-id");
+
+  if (urn === null || urn === "") {
+    throw new LinkedInError(
+      "O LinkedIn aceitou o post mas não devolveu o identificador dele.",
+      response.status,
+    );
+  }
+
+  return { urn, url: postUrl(urn) };
+}
+
+export function postUrl(urn: string): string {
+  return `https://www.linkedin.com/feed/update/${urn}/`;
 }

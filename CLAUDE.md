@@ -80,7 +80,7 @@ Diferente da spec, as fases não são estritamente sequenciais:
 - **MVP para aqui**, com publicação manual (copiar do Telegram). Valida a
   qualidade dos posts sem depender de aprovação de app do LinkedIn.
 - **Fase 6** — edição do post no painel, que a essa altura já existe.
-- **Fase 7** — publicação no LinkedIn quando o app estiver liberado.
+- **Fase 7** — publicação no LinkedIn ✅ (app liberado; falta o primeiro post real).
 
 ## O banco
 

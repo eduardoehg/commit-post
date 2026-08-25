@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  API_VERSION,
   REQUIRED_SCOPES,
   TOKEN_EXPIRY_WARNING_DAYS,
   authorizeUrl,
   avaliarExpiracao,
   memberUrn,
+  publishPost,
   textoExpiracao,
 } from "./index";
 
@@ -92,5 +94,82 @@ describe("textoExpiracao", () => {
     expect(textoExpiracao(avaliarExpiracao(new Date(AGORA.getTime() + 3600_000), AGORA)!)).toMatch(
       /hoje/,
     );
+  });
+});
+
+describe("publishPost", () => {
+  const base = {
+    accessToken: "t",
+    authorUrn: "urn:li:person:abc",
+    texto: "Resolvi uma condição de corrida.",
+  };
+
+  function responder(status: number, headers: Record<string, string> = {}, corpo = ""): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response(corpo, { status, headers }))),
+    );
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("publica como PUBLICADO e PÚBLICO, sem rascunho", async () => {
+    // O padrão de rascunho transformaria "aprovei" em "não saiu", e o dev só
+    // descobriria olhando o próprio perfil.
+    const chamada = vi.fn(() =>
+      Promise.resolve(new Response("", { status: 201, headers: { "x-restli-id": "urn:li:share:1" } })),
+    );
+    vi.stubGlobal("fetch", chamada);
+
+    await publishPost(base);
+
+    const corpo = JSON.parse(String(chamada.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(corpo["lifecycleState"]).toBe("PUBLISHED");
+    expect(corpo["visibility"]).toBe("PUBLIC");
+    expect(corpo["author"]).toBe("urn:li:person:abc");
+  });
+
+  it("manda o texto exatamente como foi aprovado", async () => {
+    // Ele já atravessou as três barreiras. Reformatar aqui significaria
+    // publicar algo diferente do que a pessoa leu e aprovou.
+    const texto = "Linha 1.\n\nLinha 2 com <sinal> & \"aspas\".";
+    const chamada = vi.fn(() =>
+      Promise.resolve(new Response("", { status: 201, headers: { "x-restli-id": "urn:li:share:1" } })),
+    );
+    vi.stubGlobal("fetch", chamada);
+
+    await publishPost({ ...base, texto });
+
+    const corpo = JSON.parse(String(chamada.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(corpo["commentary"]).toBe(texto);
+  });
+
+  it("devolve o urn do cabeçalho e monta o link", async () => {
+    // A resposta de criação do LinkedIn é vazia: o id vem no cabeçalho. Sem
+    // ele não há link nem registro do que foi ao ar.
+    responder(201, { "x-restli-id": "urn:li:share:7123" });
+    const r = await publishPost(base);
+
+    expect(r.urn).toBe("urn:li:share:7123");
+    expect(r.url).toContain("urn:li:share:7123");
+  });
+
+  it("recusa quando o LinkedIn aceita mas não devolve identificador", async () => {
+    responder(201);
+    await expect(publishPost(base)).rejects.toThrow(/identificador/);
+  });
+
+  it("aponta a versão da API quando é ela que está errada", async () => {
+    // 426 é o jeito do LinkedIn dizer "essa versão não existe mais". Sem
+    // nomear a constante, sobra um número e uma tarde de tentativa e erro.
+    responder(426, {}, "unsupported version");
+    await expect(publishPost(base)).rejects.toThrow(new RegExp(API_VERSION));
+  });
+
+  it("carrega o status para quem chama distinguir token vencido", async () => {
+    responder(401, {}, "invalid token");
+    await expect(publishPost(base)).rejects.toMatchObject({ status: 401 });
   });
 });

@@ -30,6 +30,7 @@ import {
   userEmails,
   users,
 } from "@commitpost/core/db";
+import { publicarNoLinkedIn } from "@/lib/publicar";
 import { db, requireUser } from "@/lib/runtime";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -262,8 +263,23 @@ async function decidirPeloPainel(formData: FormData, decisao: "approve" | "rejec
 
   const outras =
     resultado.tipo === "aplicada" && resultado.encerradas.length > 0
-      ? ` As outras ${String(resultado.encerradas.length)} versão(ões) foram encerradas.`
+      ? ` As outras ${String(resultado.encerradas.length)} foram encerradas.`
       : "";
+
+  // A publicação usa o mesmo caminho do Telegram. Duas implementações de
+  // "aprovar publica" divergiriam, e a errada seria a menos usada.
+  const publicacao = await publicarNoLinkedIn(user.id, id);
+
+  if (publicacao.tipo === "publicado") {
+    done({ aviso: `Publicado no LinkedIn.${outras} ${publicacao.url}` });
+  }
+
+  if (publicacao.tipo === "falhou") {
+    // Aprovado continua aprovado: o LinkedIn estar fora não é motivo para
+    // desfazer a decisão de quem aprovou. O texto segue disponível para
+    // copiar, e a tela diz o que houve.
+    done({ erro: `Aprovado, mas não saiu no LinkedIn: ${publicacao.motivo}` });
+  }
 
   done({ aviso: `Aprovado.${outras} Copie o texto e publique no LinkedIn.` });
 }

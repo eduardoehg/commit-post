@@ -27,6 +27,7 @@ import {
   parseCallbackData,
   sendMessage,
 } from "@commitpost/core/telegram";
+import { publicarNoLinkedIn, type ResultadoPublicacao } from "@/lib/publicar";
 import { db, env } from "@/lib/runtime";
 
 export const runtime = "nodejs";
@@ -198,12 +199,21 @@ export async function POST(request: Request): Promise<Response> {
     clique.action,
   );
 
+  // Publicar acontece AQUI, na aprovação, e não num passo depois: o ciclo
+  // seguinte é semanal, e adiar faria "aprovei hoje" virar "saiu na segunda
+  // que vem".
+  const publicacao =
+    resultado.tipo === "aplicada" && clique.action === "approve"
+      ? await publicarNoLinkedIn(dono.id, clique.candidateId)
+      : null;
+
   await responderDecisao(configuration.TELEGRAM_BOT_TOKEN, {
     callbackId,
     chatId,
     messageId,
     resultado,
     acao: clique.action,
+    publicacao,
   });
 
   return ok();
@@ -224,14 +234,30 @@ async function responderDecisao(
     messageId: number | null;
     resultado: ResultadoDecisao;
     acao: "approve" | "reject";
+    publicacao: ResultadoPublicacao | null;
   },
 ): Promise<void> {
-  const { aviso, legenda } = descreverDecisao(ctx.resultado, ctx.acao);
+  const { aviso, legenda } = descreverDecisao(ctx.resultado, ctx.acao, ctx.publicacao);
 
   await tentarResponder(token, ctx.callbackId, aviso);
 
   if (legenda !== null && ctx.messageId !== null) {
     await tentarMarcar(token, ctx.chatId, ctx.messageId, legenda);
+  }
+
+  // O link do post vai numa mensagem à parte: o aviso do botão tem 200 bytes e
+  // some sozinho da tela, e um link que some antes de ser tocado não serve.
+  if (ctx.publicacao?.tipo === "publicado") {
+    await tentarEnviar(token, ctx.chatId, `No ar: ${ctx.publicacao.url}`);
+  }
+
+  if (ctx.publicacao?.tipo === "falhou") {
+    await tentarEnviar(
+      token,
+      ctx.chatId,
+      `O post foi aprovado mas não saiu no LinkedIn: ${ctx.publicacao.motivo}\n\n` +
+        `O texto continua acima — dá para copiar e publicar à mão.`,
+    );
   }
 
   // As irmãs encerradas também perdem os botões. Sem isto o dev clica nelas
@@ -260,6 +286,7 @@ async function tentarMarcar(
 function descreverDecisao(
   resultado: ResultadoDecisao,
   acao: "approve" | "reject",
+  publicacao: ResultadoPublicacao | null,
 ): { aviso: string; legenda: string | null } {
   if (resultado.tipo === "nao-encontrada") {
     // Mesma resposta para "não existe" e "não é seu". Distinguir os dois
@@ -277,8 +304,19 @@ function descreverDecisao(
 
   const outros =
     resultado.encerradas.length > 0
-      ? ` As outras ${String(resultado.encerradas.length)} versão(ões) foram encerradas.`
+      ? ` As outras ${String(resultado.encerradas.length)} foram encerradas.`
       : "";
+
+  if (publicacao?.tipo === "publicado") {
+    return { aviso: `Publicado no LinkedIn.${outros}`, legenda: "🔗 publicado" };
+  }
+
+  if (publicacao?.tipo === "falhou") {
+    // A legenda diz "aprovado", e não "publicado", porque foi isso que
+    // aconteceu. Marcar como publicado o que não saiu seria a interface
+    // mentindo sobre o estado — de novo.
+    return { aviso: `Aprovado, mas não saiu no LinkedIn.${outros}`, legenda: "✅ aprovado" };
+  }
 
   return {
     aviso: `Aprovado.${outros} Copie o texto e publique no LinkedIn.`,
