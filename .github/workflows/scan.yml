@@ -49,6 +49,11 @@ jobs:
           # lidos por ninguém — dá para apagar os dois do repositório.
           GITHUB_APP_ID: ${{ secrets.COMMITPOST_APP_ID }}
           GITHUB_APP_PRIVATE_KEY: ${{ secrets.COMMITPOST_APP_PRIVATE_KEY }}
+          # Só para RENOVAR o token de colaboração, que vence em 8 horas. Sem
+          # estes dois o runner lê enquanto o token vale e para depois — e o
+          # único sintoma é o número de repositórios varridos caindo no log.
+          GITHUB_OAUTH_CLIENT_ID: ${{ secrets.COMMITPOST_OAUTH_CLIENT_ID }}
+          GITHUB_OAUTH_CLIENT_SECRET: ${{ secrets.COMMITPOST_OAUTH_CLIENT_SECRET }}
           GITHUB_LOOKBACK_DAYS: ${{ vars.COMMITPOST_LOOKBACK_DAYS || '7' }}
           REDACT_DENIED_TERMS: ${{ secrets.COMMITPOST_DENIED_TERMS }}
           TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
